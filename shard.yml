@@ -1,0 +1,9 @@
+---
+name: xephyr.context
+version: 0.0.0
+authors:
+- Anatoly Chernov <chertoly@gmail.com>
+targets:
+  xephyr.context:
+    main: src/bin/xephyr.context.cr
+crystal: ">= 1.15.1"

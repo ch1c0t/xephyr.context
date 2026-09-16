@@ -14,7 +14,7 @@ when 1
   end
 end
 
-require "../lib_x11"
+require "../x11"
 require "../xephyr_context_absorber"
 
 begin

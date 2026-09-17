@@ -86,5 +86,19 @@ module X11
     
       "Unnamed / Layout Container"
     end
+    
+    # Grabs physical spatial information so the agent knows where to click
+    def geometry
+      attrs = uninitialized LibX11::XWindowAttributes
+      LibX11.XGetWindowAttributes(@display.handle, @id, pointerof(attrs))
+      
+      {
+        x: attrs.x,
+        y: attrs.y,
+        width: attrs.width,
+        height: attrs.height,
+        visible: attrs.map_state == 2 # 2 means IsViewable on screen
+      }
+    end
   end
 end

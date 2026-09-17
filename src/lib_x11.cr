@@ -42,4 +42,20 @@ lib LibX11
   ) : XImage*
   
   fun XDestroyImage(image : XImage*) : LibC::Int
+  
+  # Structure representing layout positioning states in the X Server
+  struct XWindowAttributes
+    x : LibC::Int
+    y : LibC::Int
+    width : LibC::Int
+    height : LibC::Int
+    border_width : LibC::Int
+    depth : LibC::Int
+    visual : Void*
+    root : Window
+    class_enum : LibC::Int # Is it InputOutput or InputOnly
+    map_state : LibC::Int  # 0 = IsUnmapped, 1 = IsUnviewable, 2 = IsViewable
+  end
+  
+  fun XGetWindowAttributes(display : Display, w : Window, attributes_return : XWindowAttributes*) : LibC::Int
 end

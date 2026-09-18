@@ -1,12 +1,12 @@
 require "../x11"
-require "../xephyr_context_absorber"
+require "../absorber"
 
 # 1. Initialize the display explicitly at the top level
 display = X11::Display.new(ENV.fetch("DISPLAY_TARGET", ":10"))
 
 begin
   # 2. Initialize the absorber with the active display object
-  absorber = XephyrContextAbsorber.new(display)
+  absorber = Absorber.new(display)
   
   # 3. Pull out the text and visual structural context snapshots
   context_payload = absorber.absorb(800, 600)

@@ -1,8 +1,14 @@
 def initialize(@display : X11::Display)
 end
 
-def absorb(width : Int32 = 800, height : Int32 = 600) : X11::Context
+def absorb(width : Int32? = nil, height : Int32? = nil) : X11::Context
   root = @display.root_window
+
+  if width.nil? || height.nil?
+    res = @display.resolution
+    width ||= res[:width]
+    height ||= res[:height]
+  end
 
   root_ret = uninitialized LibX11::Window
   parent_ret = uninitialized LibX11::Window
@@ -21,12 +27,11 @@ def absorb(width : Int32 = 800, height : Int32 = 600) : X11::Context
   end
 
   canvas = X11::Image.new(@display, root, width, height)
-
-  return X11::Context.new(windows, canvas)
+  X11::Context.new(windows, canvas)
 end
 
-def summarize(width : Int32 = 800, height : Int32 = 600) : Nil
-  context = absorb(width, height)
+def summarize : Nil
+  context = absorb
   begin
     context.summarize
   ensure

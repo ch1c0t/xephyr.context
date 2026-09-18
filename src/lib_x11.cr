@@ -24,7 +24,7 @@ lib LibX11
     window : Window
   end
   
-  # XEvent is actually a union in C; wrapping it as a 192-byte block 
+  # XEvent is actually a union in C; wrapping it as a 192-byte block
   # safely captures all X11 event types without memory corruption.
   struct XEvent
     type : LibC::Int

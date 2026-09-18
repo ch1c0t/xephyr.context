@@ -2,7 +2,7 @@ def each_event(
   types : X11::EventType = X11::EventType::Redraw | X11::EventType::LayoutChange | X11::EventType::ChildChange,
   &block : X11::Event ->
 )
-  root_window_object.select_input(types)
+  subscribe_all(types)
 
   # 3. Allocate a single memory slot on the stack for incoming data
   raw_event = uninitialized LibX11::XEvent

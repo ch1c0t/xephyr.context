@@ -14,4 +14,5 @@ end
 
 include RootWindow
 include Resolution
+include SubscribeAll
 include EachEvent

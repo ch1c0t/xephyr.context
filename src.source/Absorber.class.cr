@@ -24,3 +24,13 @@ def absorb(width : Int32 = 800, height : Int32 = 600) : X11::Context
 
   return X11::Context.new(windows, canvas)
 end
+
+def summarize(width : Int32 = 800, height : Int32 = 600) : Nil
+  context = absorb(width, height)
+  begin
+    context.summarize
+  ensure
+    # Guaranteed execution block to ensure zero memory leaks
+    context.canvas.try(&.destroy)
+  end
+end

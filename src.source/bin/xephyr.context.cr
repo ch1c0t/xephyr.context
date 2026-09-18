@@ -8,6 +8,11 @@ begin
   # 2. Initialize the absorber with the active display object
   absorber = Absorber.new(display)
   absorber.summarize
+
+  display.each_event do |event|
+    p "from display.each_event"
+    pp! event
+  end
 ensure
   # 6. Gracefully tear down the X11 connection loop at the absolute end
   display.close

@@ -8,12 +8,10 @@ def initialize(display_name : String)
   @handle = raw_display
 end
 
-def root_window : LibX11::Window
-  LibX11.XDefaultRootWindow(@handle)
-end
-
 def close
   LibX11.XCloseDisplay(@handle)
 end
 
+include RootWindow
 include Resolution
+include EachEvent

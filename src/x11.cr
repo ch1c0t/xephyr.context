@@ -23,6 +23,19 @@ module X11
   end
 
   class Display
+    module Resolution
+      def resolution : NamedTuple(width: Int32, height: Int32)
+        attrs = uninitialized LibX11::XWindowAttributes
+        status = LibX11.XGetWindowAttributes(@handle, root_window, pointerof(attrs))
+      
+        if status == 0
+          raise "Failed to query screen resolution attributes from the X11 root window"
+        end
+      
+        {width: attrs.width, height: attrs.height}
+      end
+    end
+  
     getter handle : LibX11::Display
     
     def initialize(display_name : String)
@@ -41,16 +54,7 @@ module X11
       LibX11.XCloseDisplay(@handle)
     end
     
-    def resolution : NamedTuple(width: Int32, height: Int32)
-      attrs = uninitialized LibX11::XWindowAttributes
-      status = LibX11.XGetWindowAttributes(@handle, root_window, pointerof(attrs))
-      
-      if status == 0
-        raise "Failed to query screen resolution attributes from the X11 root window"
-      end
-    
-      {width: attrs.width, height: attrs.height}
-    end
+    include Resolution
   end
 
   class Image

@@ -1,15 +1,35 @@
 require "./lib_x11"
 
 module X11
-  # The @[Flags] annotation changes how this enum behaves under the hood
   # https://share.google/aimode/ve4pLYNnk1fbjQITm
   # https://maltsev.space/blog/011-practical-bitwise-tricks-in-everyday-code
-  @[Flags]
+  # https://share.google/aimode/dMymIVrGGWVlg3ZLE
   enum EventType : Int64
-    Redraw       = 1_i64 << 15  # Maps to ExposureMask
-    LayoutChange = 1_i64 << 17  # Maps to StructureNotifyMask
-    ChildChange  = 1_i64 << 18  # Maps to SubstructureNotifyMask
+    KeyPressMask             = 1_i64 << 0
+    KeyReleaseMask           = 1_i64 << 1
+    ButtonPressMask          = 1_i64 << 2
+    ButtonReleaseMask        = 1_i64 << 3
+    PointerMotionMask        = 1_i64 << 6
+    ExposureMask             = 1_i64 << 15
+    StructureNotifyMask      = 1_i64 << 17
+    SubstructureNotifyMask   = 1_i64 << 18
+    SubstructureRedirectMask = 1_i64 << 19
+    FocusChangeMask          = 1_i64 << 23
   end
+  
+  # =========================================================================
+  # THE COMBINED CONSTANT: Merges every critical observation mask together
+  # =========================================================================
+  ALL_EVENTS_MASK = EventType::KeyPressMask.value             |
+                    EventType::KeyReleaseMask.value           |
+                    EventType::ButtonPressMask.value          |
+                    EventType::ButtonReleaseMask.value        |
+                    EventType::PointerMotionMask.value        |
+                    EventType::ExposureMask.value             |
+                    EventType::StructureNotifyMask.value      |
+                    EventType::SubstructureNotifyMask.value   |
+                    EventType::SubstructureRedirectMask.value |
+                    EventType::FocusChangeMask.value
 
   class Context
     property windows : Array(X11::Window)
@@ -34,10 +54,10 @@ module X11
   class Display
     module EachEvent
       def each_event(
-        types : X11::EventType = X11::EventType::Redraw | X11::EventType::LayoutChange | X11::EventType::ChildChange,
+        mask : Int64 = X11::ALL_EVENTS_MASK,
         &block : X11::Event ->
       )
-        subscribe_all(types)
+        subscribe_all(mask)
       
         # 3. Allocate a single memory slot on the stack for incoming data
         raw_event = uninitialized LibX11::XEvent
@@ -77,16 +97,16 @@ module X11
   
     module SubscribeAll
       # 💡 THINK: Hidden structural configuration helper
-      private def subscribe_all(types : X11::EventType)
+      private def subscribe_all(mask : Int64 = X11::ALL_EVENTS_MASK)
         # 1. Attach to the primary root window layout
-        root_window_object.select_input(types)
+        root_window_object.select_input(mask)
       
         # 2. Start a deep recursive dive down the entire window tree
-        subscribe_recursive(root_window, types)
+        subscribe_recursive(root_window, mask)
       end
       
       # RECURSIVE ENGINE: Climbs all the way down the UI widget branches
-      private def subscribe_recursive(window_id : LibX11::Window, types : X11::EventType)
+      private def subscribe_recursive(window_id : LibX11::Window, mask : Int64 = X11::ALL_EVENTS_MASK,)
         root_ret = uninitialized LibX11::Window
         parent_ret = uninitialized LibX11::Window
         nchildren = uninitialized LibC::UInt
@@ -99,11 +119,11 @@ module X11
           window_ids = Slice.new(children_ptr, nchildren.to_i32)
       
           window_ids.each do |child_id|
-            # A. Hook this specific sub-component element window handle
-            LibX11.XSelectInput(@handle, child_id, types.value.to_i64)
+            window = Window.new child_id, self
+            window.select_input(mask)
       
             # B. RECURSE: Keep diving down into this child's nested structures!
-            subscribe_recursive(child_id, types)
+            subscribe_recursive(child_id, mask)
           end
       
           LibX11.XFree(children_ptr.as(Void*))
@@ -210,10 +230,8 @@ module X11
     end
   
     module SelectInput
-      # Translates the elegant enum flags and registers them with the X Server
-      def select_input(types : X11::EventType)
-        raw_mask = types.value.to_i64
-        result = LibX11.XSelectInput(@display.handle, @id, raw_mask)
+      def select_input(mask : Int64 = X11::ALL_EVENTS_MASK)
+        result = LibX11.XSelectInput(@display.handle, @id, mask)
       
         if result == 0
           raise "Failed to register event configuration on Window #{@id}"

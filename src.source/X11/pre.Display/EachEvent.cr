@@ -1,8 +1,8 @@
 def each_event(
-  types : X11::EventType = X11::EventType::Redraw | X11::EventType::LayoutChange | X11::EventType::ChildChange,
+  mask : Int64 = X11::ALL_EVENTS_MASK,
   &block : X11::Event ->
 )
-  subscribe_all(types)
+  subscribe_all(mask)
 
   # 3. Allocate a single memory slot on the stack for incoming data
   raw_event = uninitialized LibX11::XEvent

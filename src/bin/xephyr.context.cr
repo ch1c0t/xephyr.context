@@ -33,7 +33,7 @@ begin
   absorber = Absorber.new(display)
   absorber.summarize
 
-  each 1000.millisecond do
+  each 1000.milliseconds do
     pp! absorber
   end
 ensure

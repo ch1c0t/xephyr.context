@@ -3,3 +3,4 @@ end
 
 include Absorb
 include Summarize
+include FetchWindowList

@@ -59,6 +59,7 @@ fun XQueryTree(
 fun XFetchName(display : Display, w : Window, window_name_return : LibC::Char**) : LibC::Int
 fun XFree(data : Void*) : LibC::Int
 
+# https://share.google/aimode/mVkJsTOuieeDT75rz
 fun XGetImage(
   display : Display, d : Drawable, x : LibC::Int, y : LibC::Int,
   width : LibC::UInt, height : LibC::UInt, plane_mask : LibC::ULong, format : LibC::Int

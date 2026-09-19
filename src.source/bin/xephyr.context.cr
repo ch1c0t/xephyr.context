@@ -9,11 +9,11 @@ begin
   absorber = Absorber.new(display)
   absorber.summarize
 
-  display.each_event do |event|
-    p "from display.each_event"
-    pp! event
+  each 1000.millisecond do
+    pp! absorber
   end
 ensure
   # 6. Gracefully tear down the X11 connection loop at the absolute end
   display.close
+  puts "\n Closed connections to Xephyr gracefully."
 end

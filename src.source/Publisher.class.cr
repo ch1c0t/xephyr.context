@@ -6,5 +6,7 @@ def initialize
 end
 
 def call(context : X11::Context) : Nil
-  pp! context
+  broadcast_compressed_canvas context.canvas
 end
+
+include BroadcastCompressedCanvas

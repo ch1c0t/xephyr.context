@@ -5,6 +5,7 @@ getter pointer : LibX11::XImage*
 @@last_hash : UInt64 = 0_u64
 
 include Changed
+include ToDeflate
 
 def initialize(@display : X11::Display, target : LibX11::Window, width : Int32, height : Int32)
   all_planes = ~0_u64 # Binary mask to read all color bitplanes (R, G, B, Alpha)

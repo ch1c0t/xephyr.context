@@ -40,7 +40,7 @@ begin
     canvas = context.canvas
 
     if canvas.changed?
-      puts " [MUTATION] Pixels changed inside the sandbox!"
+      puts "[MUTATION] Pixels changed inside the sandbox!"
       publish.call context
     else
       puts "No mutations"

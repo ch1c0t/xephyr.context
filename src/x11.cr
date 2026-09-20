@@ -1,4 +1,5 @@
 require "./lib_x11"
+require "compress/deflate"
 
 module X11
   # https://share.google/aimode/ve4pLYNnk1fbjQITm
@@ -195,6 +196,23 @@ module X11
       end
     end
   
+    module ToDeflate
+      # 💡 THINK: Squeezes raw framebuffer memory into a dense binary byte slice
+      def to_deflate : Slice(UInt8)
+        img = @pointer.value
+        buffer_size = img.bytes_per_line * img.height
+        raw_pixel_bytes = Slice.new(img.data.as(UInt8*), buffer_size)
+      
+        compressed_io = IO::Memory.new
+      
+        Compress::Deflate::Writer.open(compressed_io) do |deflate|
+          deflate.write(raw_pixel_bytes)
+        end
+      
+        compressed_io.to_slice
+      end
+    end
+  
     # Expose the underlying C pointer so hashing engines can read it directly
     getter pointer : LibX11::XImage*
     
@@ -202,6 +220,7 @@ module X11
     @@last_hash : UInt64 = 0_u64
     
     include Changed
+    include ToDeflate
     
     def initialize(@display : X11::Display, target : LibX11::Window, width : Int32, height : Int32)
       all_planes = ~0_u64 # Binary mask to read all color bitplanes (R, G, B, Alpha)

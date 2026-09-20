@@ -174,8 +174,34 @@ module X11
   end
 
   class Image
+    module Changed
+      # Returns true if this newly captured canvas differs from the previous historical frame
+      def changed? : Bool
+        img = @pointer.value
+      
+        # ZERO-COPY MEMORY BRIDGE: Map the raw C heap array directly into a Crystal Slice
+        buffer_size = img.bytes_per_line * img.height
+        raw_slice = Slice.new(img.data.as(UInt8*), buffer_size)
+      
+        # Compute an ultra-fast hardware-accelerated block hash
+        current_hash = raw_slice.hash
+      
+        if current_hash != @@last_hash
+          @@last_hash = current_hash
+          true
+        else
+          false
+        end
+      end
+    end
+  
     # Expose the underlying C pointer so hashing engines can read it directly
     getter pointer : LibX11::XImage*
+    
+    # We use a class variable so successive image allocations can compare histories
+    @@last_hash : UInt64 = 0_u64
+    
+    include Changed
     
     def initialize(@display : X11::Display, target : LibX11::Window, width : Int32, height : Int32)
       all_planes = ~0_u64 # Binary mask to read all color bitplanes (R, G, B, Alpha)

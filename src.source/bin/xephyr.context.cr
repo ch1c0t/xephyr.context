@@ -11,6 +11,16 @@ begin
 
   each 1000.milliseconds do
     pp! absorber
+    context = absorber.absorb
+
+    if canvas = context.canvas
+      if canvas.changed?
+        puts " [MUTATION] Pixels changed inside the sandbox!"
+      else
+        puts "No mutations"
+      end
+      canvas.destroy
+    end
   end
 ensure
   # 6. Gracefully tear down the X11 connection loop at the absolute end

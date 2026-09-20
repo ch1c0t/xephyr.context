@@ -1,6 +1,11 @@
 # Expose the underlying C pointer so hashing engines can read it directly
 getter pointer : LibX11::XImage*
 
+# We use a class variable so successive image allocations can compare histories
+@@last_hash : UInt64 = 0_u64
+
+include Changed
+
 def initialize(@display : X11::Display, target : LibX11::Window, width : Int32, height : Int32)
   all_planes = ~0_u64 # Binary mask to read all color bitplanes (R, G, B, Alpha)
   drawable = target.as(LibX11::Drawable)

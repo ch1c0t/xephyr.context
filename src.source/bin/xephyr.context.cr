@@ -1,26 +1,28 @@
 require "../x11"
 require "../absorber"
+require "../publisher"
 
 # 1. Initialize the display explicitly at the top level
 display = X11::Display.new(ENV.fetch("DISPLAY_TARGET", ":10"))
 
 begin
-  # 2. Initialize the absorber with the active display object
   absorber = Absorber.new(display)
   absorber.summarize
 
-  each 1000.milliseconds do
-    pp! absorber
-    context = absorber.absorb
+  publish = Publisher.new
 
-    if canvas = context.canvas
-      if canvas.changed?
-        puts " [MUTATION] Pixels changed inside the sandbox!"
-      else
-        puts "No mutations"
-      end
-      canvas.destroy
+  each 1000.milliseconds do
+    context = absorber.absorb
+    canvas = context.canvas
+
+    if canvas.changed?
+      puts "[MUTATION] Pixels changed inside the sandbox!"
+      publish.call context
+    else
+      puts "No mutations"
     end
+
+    canvas.destroy
   end
 ensure
   # 6. Gracefully tear down the X11 connection loop at the absolute end

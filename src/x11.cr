@@ -33,9 +33,9 @@ module X11
 
   class Context
     property windows : Array(X11::Window)
-    property canvas : X11::Image?
+    property canvas : X11::Image
     
-    def initialize(@windows, @canvas = nil)
+    def initialize(@windows, @canvas)
     end
     
     def summarize

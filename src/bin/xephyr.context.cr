@@ -22,13 +22,13 @@ def each(interval : Time::Span, &block)
   end
 end
 
-require "../config"
+require "../global"
 require "../x11"
 require "../absorber"
 require "../publisher"
 
 # 1. Initialize the display explicitly at the top level
-display = X11::Display.new(Config.display)
+display = X11::Display.new(Global.display)
 
 begin
   absorber = Absorber.new(display)

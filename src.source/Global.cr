@@ -8,15 +8,4 @@ end
 @@display : String = ENV.fetch("DISPLAY_TARGET", ":10")
 @@display_number : String = @@display.delete(':')
 
-# 2. Clean class property accessors
-def self.socket_path : String
-  @@socket_path
-end
-
-def self.display : String
-  @@display
-end
-
-def self.display_number : String
-  @@display_number
-end
+extend Getters

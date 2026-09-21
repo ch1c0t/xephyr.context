@@ -7,6 +7,7 @@ end
 
 def call(context : X11::Context) : Nil
   broadcast_compressed_canvas context.canvas
+  pp! Global.amqp_channel
 end
 
 include BroadcastCompressedCanvas

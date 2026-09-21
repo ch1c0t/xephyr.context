@@ -7,3 +7,6 @@ targets:
   xephyr.context:
     main: src/bin/xephyr.context.cr
 crystal: ">= 1.15.1"
+dependencies:
+  amqp-client:
+    github: cloudamqp/amqp-client.cr

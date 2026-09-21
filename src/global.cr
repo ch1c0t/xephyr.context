@@ -1,4 +1,22 @@
+require "amqp-client"
+
 module Global
+  module AMQP
+    def self.create_channel(socket_path : String) : ::AMQP::Client::Channel
+      client = ::AMQP::Client.new host: socket_path
+      conn = client.connect
+      ch = conn.channel
+    
+      at_exit do
+        puts "\n [Global Cleanup] Tearing down AMQP connection pipes automatically..."
+        ch.close
+        conn.close
+      end
+    
+      ch
+    end
+  end
+
   module Getters
     def socket_path : String
       @@socket_path
@@ -11,6 +29,10 @@ module Global
     def display_number : String
       @@display_number
     end
+    
+    def amqp_channel : ::AMQP::Client::Channel
+      @@amqp_channel ||= Global::AMQP.create_channel(Global.socket_path)
+    end
   end
 
   # 1. Thread-safe cached configuration class variables
@@ -22,6 +44,8 @@ module Global
   
   @@display : String = ENV.fetch("DISPLAY_TARGET", ":10")
   @@display_number : String = @@display.delete(':')
+  
+  @@amqp_channel : ::AMQP::Client::Channel? = nil
   
   extend Getters
 end

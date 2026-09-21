@@ -8,4 +8,6 @@ end
 @@display : String = ENV.fetch("DISPLAY_TARGET", ":10")
 @@display_number : String = @@display.delete(':')
 
+@@amqp_channel : ::AMQP::Client::Channel? = nil
+
 extend Getters

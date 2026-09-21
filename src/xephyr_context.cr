@@ -4,6 +4,67 @@ require "base64"
 require "json"
 
 class XephyrContext
+  module EachMutation
+    def each_mutation(&block : State ->)
+      # Stream 1: Update the live layout metadata cache asynchronously
+      @spatial_queue.consume do |payload|
+        @current_spatial_data = parse_spatial_windows(payload)
+      end
+    
+      # Stream 2: Assemble and deliver a mixed world state snapshot asynchronously
+      @canvas_queue.consume do |payload|
+        block.call(build_state_snapshot(payload))
+      rescue ex : Exception
+        puts " [XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}"
+      end
+    end
+  end
+
+  module Private
+    private def build_state_snapshot(payload : JSON::Any) : State
+      timestamp = payload["timestamp"].as_i64
+      raw_pixels = inflate_canvas_bytes(payload["data"].as_s)
+    
+      State.new(
+        windows:    @current_spatial_data, # Blends from the active spatial background cache
+        raw_pixels: raw_pixels,
+        timestamp:  timestamp
+      )
+    end
+    
+    private def parse_spatial_windows(payload : JSON::Any) : Array(JSON::Any)
+      payload["windows"]?.try(&.as_a) || [] of JSON::Any
+    rescue Exception
+      [] of JSON::Any
+    end
+    
+    private def inflate_canvas_bytes(base64_string : String) : Slice(UInt8)
+      compressed_bytes = Base64.decode(base64_string)
+      decompressed_io = IO::Memory.new
+      IO.copy(Compress::Deflate::Reader.new(IO::Memory.new(compressed_bytes)), decompressed_io)
+      decompressed_io.to_slice
+    end
+  end
+
+  class Queue
+    getter name : String
+    
+    def initialize(@name : String, @channel : ::AMQP::Client::Channel)
+    end
+    
+    # Subscribes to the queue and yields a fully parsed JSON::Any object to the block
+    def consume(&block : JSON::Any ->) : Nil
+      @channel.basic_consume(@name, no_ack: true) do |msg|
+        begin
+          payload = JSON.parse(msg.body_io)
+          block.call payload
+        rescue ex : Exception
+          puts " [XephyrContext Queue Error] Failed to parse stream payload: #{ex.message}"
+        end
+      end
+    end
+  end
+
   class State
     getter windows : Array(JSON::Any)
     getter raw_pixels : Slice(UInt8)
@@ -14,57 +75,14 @@ class XephyrContext
   end
 
   @display_number : String
-  @channel : ::AMQP::Client::Channel
   @current_spatial_data = [] of JSON::Any
   
   def initialize(display_target : String, channel : ::AMQP::Client::Channel)
     @display_number = display_target.delete(':')
-    @channel = channel
+    @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.delta", channel
+    @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
   end
   
-  # Stream processing engine traps message frames asynchronously 
-  def each_mutation(&block : State ->)
-    canvas_queue  = "xephyr.#{@display_number}.canvas.delta"
-    spatial_queue = "xephyr.#{@display_number}.telemetry.spatial"
-  
-    # 1. Pipeline Stream 1: Continuously catch layout tree changes in background
-    @channel.basic_consume(spatial_queue, no_ack: true) do |msg|
-      begin
-        payload = JSON.parse(msg.body_io)
-        if window_array = payload["windows"]?
-          @current_spatial_data = window_array.as_a
-        end
-      rescue ex : Exception
-        # Suppress framing anomalies to protect loop stability
-      end
-    end
-  
-    # 2. Pipeline Stream 2: Main blocking thread waits for physical pixel changes
-    puts " [XephyrContext Client] Listening to display streams for workspace :#{@display_number}..."
-    @channel.basic_consume(canvas_queue, no_ack: true) do |msg|
-      begin
-        payload = JSON.parse(msg.body_io)
-        timestamp = payload["timestamp"].as_i64
-  
-        # Inflate the dense, scrot-optimized Zlib compression buffer on-the-fly
-        base64_data = payload["data"].as_s
-        compressed_bytes = Base64.decode(base64_data)
-  
-        decompressed_io = IO::Memory.new
-        IO.copy(Compress::Deflate::Reader.new(IO::Memory.new(compressed_bytes)), decompressed_io)
-        raw_pixel_bytes = decompressed_io.to_slice
-  
-        # Instantiate a clean state snapshot model and yield it straight to the Agent block loop
-        state_snapshot = State.new(
-          windows:    @current_spatial_data,
-          raw_pixels: raw_pixel_bytes,
-          timestamp:  timestamp
-        )
-  
-        block.call(state_snapshot)
-      rescue ex : Exception
-        puts " [XephyrContext Client Error] Failed parsing mutation package: #{ex.message}"
-      end
-    end
-  end
+  include Private
+  include EachMutation
 end

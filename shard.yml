@@ -6,6 +6,8 @@ authors:
 targets:
   xephyr.context:
     main: src/bin/xephyr.context.cr
+  xephyr.log_changes:
+    main: src/bin/xephyr.log_changes.cr
 crystal: ">= 1.15.1"
 dependencies:
   amqp-client:

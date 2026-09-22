@@ -15,7 +15,6 @@ lib LibX11
   Expose          = 12
   ConfigureNotify = 22
   
-  # This header struct accurately maps the first few bytes common to every X11 event payload
   struct XAnyEvent
     type : LibC::Int
     serial : LibC::ULong
@@ -24,11 +23,9 @@ lib LibX11
     window : Window
   end
   
-  # XEvent is actually a union in C; wrapping it as a 192-byte block
-  # safely captures all X11 event types without memory corruption.
   struct XEvent
     type : LibC::Int
-    pad : LibC::Long[24] # Ensure enough buffer safety padding for large events
+    pad : LibC::Long[24]
   end
   
   struct XImage
@@ -48,26 +45,6 @@ lib LibX11
     green_mask : LibC::ULong
     blue_mask : LibC::ULong
   end
-  
-  fun XOpenDisplay(display_name : LibC::Char*) : Display
-  fun XCloseDisplay(display : Display) : LibC::Int
-  fun XDefaultRootWindow(display : Display) : Window
-  
-  fun XQueryTree(
-    display : Display, w : Window, root_return : Window*, parent_return : Window*,
-    children_return : Window**, nchildren_return : LibC::UInt*
-  ) : LibC::Int
-  
-  fun XFetchName(display : Display, w : Window, window_name_return : LibC::Char**) : LibC::Int
-  fun XFree(data : Void*) : LibC::Int
-  
-  # https://share.google/aimode/mVkJsTOuieeDT75rz
-  fun XGetImage(
-    display : Display, d : Drawable, x : LibC::Int, y : LibC::Int,
-    width : LibC::UInt, height : LibC::UInt, plane_mask : LibC::ULong, format : LibC::Int
-  ) : XImage*
-  
-  fun XDestroyImage(image : XImage*) : LibC::Int
   
   struct XWindowAttributes
     x : LibC::Int
@@ -94,6 +71,26 @@ lib LibX11
     override_redirect : LibC::Int # Maps to C Bool
     screen : Void*               # Pointer to Screen structure
   end
+  
+  fun XOpenDisplay(display_name : LibC::Char*) : Display
+  fun XCloseDisplay(display : Display) : LibC::Int
+  fun XDefaultRootWindow(display : Display) : Window
+  
+  fun XQueryTree(
+    display : Display, w : Window, root_return : Window*, parent_return : Window*,
+    children_return : Window**, nchildren_return : LibC::UInt*
+  ) : LibC::Int
+  
+  fun XFetchName(display : Display, w : Window, window_name_return : LibC::Char**) : LibC::Int
+  fun XFree(data : Void*) : LibC::Int
+  
+  # https://share.google/aimode/mVkJsTOuieeDT75rz
+  fun XGetImage(
+    display : Display, d : Drawable, x : LibC::Int, y : LibC::Int,
+    width : LibC::UInt, height : LibC::UInt, plane_mask : LibC::ULong, format : LibC::Int
+  ) : XImage*
+  
+  fun XDestroyImage(image : XImage*) : LibC::Int
   
   fun XGetWindowAttributes(display : Display, w : Window, attributes_return : XWindowAttributes*) : LibC::Int
   fun XSelectInput(display : Display, w : Window, event_mask : LibC::Long) : LibC::Int

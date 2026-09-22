@@ -1,0 +1,15 @@
+width : LibC::Int
+height : LibC::Int
+xoffset : LibC::Int
+format : LibC::Int
+data : LibC::Char*
+byte_order : LibC::Int
+bitmap_unit : LibC::Int
+bitmap_bit_order : LibC::Int
+bitmap_pad : LibC::Int
+depth : LibC::Int
+bytes_per_line : LibC::Int
+bits_per_pixel : LibC::Int
+red_mask : LibC::ULong
+green_mask : LibC::ULong
+blue_mask : LibC::ULong

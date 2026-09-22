@@ -1,6 +1,6 @@
 GIT
   remote: https://github.com/ch1c0t/bgem.git
-  revision: 1c9f2edb4a4aeccc1414ca77ad33b6579e924de6
+  revision: 3857bde4253bc60aa7e5f650fba7dce6dd0b15f8
   branch: main
   specs:
     bgem (0.2.2)

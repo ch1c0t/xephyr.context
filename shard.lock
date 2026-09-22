@@ -8,3 +8,11 @@ shards:
     git: https://github.com/cloudamqp/amqp-client.cr.git
     version: 1.3.4
 
+  stumpy_core:
+    git: https://github.com/stumpycr/stumpy_core.git
+    version: 1.9.1
+
+  stumpy_png:
+    git: https://github.com/stumpycr/stumpy_png.git
+    version: 5.0.1
+

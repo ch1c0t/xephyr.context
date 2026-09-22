@@ -8,7 +8,11 @@ targets:
     main: src/bin/xephyr.context.cr
   xephyr.log_changes:
     main: src/bin/xephyr.log_changes.cr
+  xephyr.save_screenshots_to:
+    main: src/bin/xephyr.save_screenshots_to.cr
 crystal: ">= 1.15.1"
 dependencies:
   amqp-client:
     github: cloudamqp/amqp-client.cr
+  stumpy_png:
+    github: stumpycr/stumpy_png

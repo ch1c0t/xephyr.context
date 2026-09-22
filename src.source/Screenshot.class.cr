@@ -1,27 +1,20 @@
-# Absolute screen resolution bounds matching your Xephyr canvas setup
-WIDTH  = 1920
-HEIGHT = 1080
-
 def initialize(@state : XephyrContext::State)
 end
 
-# =========================================================================
-# HIGH-PERFORMANCE PIXEL EXPORT TO A TARGET DIRECTORY
-# =========================================================================
 def save_to(dir : String) : Nil
-  # 1. Defensive Guard: Ensure the requested directory branch exists on disk
   FileUtils.mkdir_p(dir)
-
-  # 2. Build our explicit timestamped filename string inside that directory path
   path = File.join(dir, "frame_#{@state.timestamp}.png")
 
-  canvas = StumpyPNG::Canvas.new(WIDTH, HEIGHT)
+  width = @state.width
+  height = @state.height
+
+  canvas = StumpyPNG::Canvas.new(width, height)
   raw_bytes = @state.raw_pixels
 
-  HEIGHT.times do |y|
-    WIDTH.times do |x|
+  height.times do |y|
+    width.times do |x|
       # ZPixmap sequential mapping lookup [B, G, R, A]
-      pixel_offset = (y * WIDTH + x) * 4
+      pixel_offset = (y * width + x) * 4
       break if pixel_offset + 3 >= raw_bytes.size
 
       b = raw_bytes[pixel_offset]
@@ -37,6 +30,5 @@ def save_to(dir : String) : Nil
     end
   end
 
-  # Write out the physical PNG binary
   StumpyPNG.write(canvas, path)
 end

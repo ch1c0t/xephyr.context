@@ -5,6 +5,8 @@ private def build_state_snapshot(payload : JSON::Any) : State
   State.new(
     windows:    @current_spatial_data, # Blends from the active spatial background cache
     raw_pixels: raw_pixels,
+    width:      payload["width"].as_i,
+    height:     payload["height"].as_i,
     timestamp:  timestamp
   )
 end

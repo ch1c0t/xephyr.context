@@ -17,6 +17,7 @@ class Screenshot
   
     height.times do |y|
       width.times do |x|
+        # https://share.google/aimode/QgWBqs9YsQWg2fHVX
         # ZPixmap sequential mapping lookup [B, G, R, A]
         pixel_offset = (y * width + x) * 4
         break if pixel_offset + 3 >= raw_bytes.size

@@ -10,7 +10,7 @@ shards:
 
   global-amqp_channel:
     git: https://github.com/ch1c0t/crystal.global-amqp_channel.git
-    version: 0.1.0+git.commit.4bac622f81175cf583c24f023cd2f5543e739094
+    version: 0.1.0+git.commit.692a8125d6a6c9d2d0c13685ee18cf27bb1abedb
 
   stumpy_core:
     git: https://github.com/stumpycr/stumpy_core.git

@@ -1,5 +1,5 @@
 require "amqp-client"
-require "../lib/global-amqp_channel/src/global/amqp_channel"
+require "global-amqp_channel"
 
 module Global
   module Getters

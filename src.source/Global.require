@@ -1,1 +1,2 @@
 amqp-client
+../lib/global-amqp_channel/src/global/amqp_channel

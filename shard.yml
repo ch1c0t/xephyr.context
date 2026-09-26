@@ -1,5 +1,5 @@
 ---
-name: xephyr.context
+name: xephyr_context
 version: 0.0.0
 authors:
 - Anatoly Chernov <chertoly@gmail.com>

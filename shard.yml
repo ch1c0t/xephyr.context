@@ -8,10 +8,10 @@ targets:
     main: src/bin/xephyr.context.cr
   xephyr.log_changes:
     main: src/bin/xephyr.log_changes.cr
-  xephyr.save_screenshots_to:
-    main: src/bin/xephyr.save_screenshots_to.cr
   xephyr.save_screenshots_and_text:
     main: src/bin/xephyr.save_screenshots_and_text.cr
+  xephyr.save_screenshots_to:
+    main: src/bin/xephyr.save_screenshots_to.cr
 crystal: ">= 1.15.1"
 dependencies:
   stumpy_png:

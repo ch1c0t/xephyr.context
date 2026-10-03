@@ -24,6 +24,7 @@ if ARGV.empty?
 end
 
 output_dir = ARGV[0]
+text_recognizer = XephyrContext::TextRecognizer.new
 
 context = XephyrContext.new(Global.display, Global.amqp_channel)
 
@@ -32,7 +33,7 @@ puts " [Active] Tracking workspace mutations... Images and text will dump into #
 
 context.each_mutation do |state|
   begin
-    Screenshot.new(state).save_to(output_dir, save_image: true, save_text: true)
+    Screenshot.new(state, text_recognizer).save_to(output_dir, save_image: true, save_text: true)
     puts "  [SAVED] #{state.timestamp} ──► #{output_dir}/"
   rescue ex : Exception
     puts "  [Recorder Error] Failed writing image/text context payload: #{ex.message}"

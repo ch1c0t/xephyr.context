@@ -2,3 +2,4 @@ amqp-client
 compress/deflate
 base64
 json
+./lib_tesseract

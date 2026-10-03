@@ -1,3 +1,5 @@
+type TessBaseAPI = Void*
+
 fun TessVersion : LibC::Char*
 
 fun TessBaseAPICreate : TessBaseAPI

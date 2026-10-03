@@ -1,5 +1,6 @@
 require "file_utils"
 require "stumpy_png"
+require "./xephyr_context"
 
 class Screenshot
   module Helpers
@@ -76,36 +77,11 @@ class Screenshot
     
     private def recognize_text : String
       pixels = grayscale_pixels
-    
-      # The CLI adapter needs a PGM image; LibTesseract can consume the same
-      # grayscale pixels directly.
-      input = IO::Memory.new
-      input << "P5\n#{@state.width} #{@state.height}\n255\n"
-      input.write(pixels)
-      input.rewind
-    
-      output = IO::Memory.new
-      error = IO::Memory.new
-    
-      status = Process.run(
-        "tesseract",
-        ["stdin", "stdout"],
-        input: input,
-        output: output,
-        error: error
-      )
-    
-      unless status.success?
-        details = error.to_s
-        raise "Tesseract failed with exit code #{status.exit_code}: #{details}" unless details.empty?
-        raise "Tesseract failed with exit code #{status.exit_code}"
-      end
-    
-      output.to_s
+      text_recognizer.recognize(pixels, @state.width, @state.height)
     end
   end
 
-  def initialize(@state : XephyrContext::State)
+  def initialize(@state : XephyrContext::State, @text_recognizer : XephyrContext::TextRecognizer? = nil)
   end
   
   def save_to(dir : String, save_image : Bool = true, save_text : Bool = false) : Nil
@@ -113,6 +89,10 @@ class Screenshot
   
     write_image(dir) if save_image
     write_text(dir) if save_text
+  end
+  
+  private def text_recognizer : XephyrContext::TextRecognizer
+    @text_recognizer ||= XephyrContext::TextRecognizer.new
   end
   
   include WriteImage

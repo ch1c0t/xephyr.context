@@ -12,7 +12,7 @@ begin
 
   publish = Publisher.new
 
-  each 1000.milliseconds do
+  each Global.interval do
     context = absorber.absorb
     canvas = context.canvas
 

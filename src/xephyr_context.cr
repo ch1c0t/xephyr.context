@@ -99,6 +99,17 @@ class XephyrContext
     end
   end
 
+  module Replay
+    def replay_mutations(offset : String = "first", &block : State ->) : Nil
+      @canvas_queue.consume(offset) do |payload|
+        state = build_state_snapshot(payload)
+        block.call(state)
+      rescue ex : Exception
+        puts " [XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}"
+      end
+    end
+  end
+
   class State
     getter windows : Array(JSON::Any)
     getter raw_pixels : Slice(UInt8)
@@ -166,18 +177,6 @@ class XephyrContext
         state
       when timeout(remaining)
         raise "Timed out waiting for #{expected.inspect}"
-      end
-    end
-  end
-
-
-  module Replay
-    def replay_mutations(offset : String = "first", &block : State ->) : Nil
-      @canvas_queue.consume(offset) do |payload|
-        state = build_state_snapshot(payload)
-        block.call(state)
-      rescue ex : Exception
-        puts " [XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}"
       end
     end
   end

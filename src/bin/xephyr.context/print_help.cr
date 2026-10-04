@@ -12,7 +12,7 @@ can be passed as follows:
 
 Whenever the state of pixels(inside of a Xephyr instance) changes, a new state
 snapshot gets published to the following queues:
-  "xephyr.\#{DISPLAY_TARGET}.canvas.delta"
+  "xephyr.\#{DISPLAY_TARGET}.canvas.stream"
   "xephyr.\#{DISPLAY_TARGET}.telemetry.spatial"
 
 `XephyrContext` is a Crystal class which provides a way to consume the data from
@@ -27,7 +27,22 @@ these queues:
       puts "Decompressed Pixels : \#{state.raw_pixels.size} bytes loaded dynamically in memory."
     end
 
-xephyr.log_changes and xephyr.save_screenshots_to use it.
+A live consumer:
+
+    context.each_mutation do |state|
+      # latest live canvas mutations
+    end
+
+A historical consumer:
+
+    context.replay_mutations("first") do |state|
+      # every retained canvas mutation
+    end
+
+The replay offset may also be "next", "last", or a stream offset supported by
+LavinMQ.
+
+xephyr.log_changes and xephyr.save_screenshots_to use the live consumer.
 S
 
 def print_help

@@ -15,7 +15,7 @@ private def start_mutation_consumers : Nil
     @current_spatial_data = parse_spatial_windows(payload)
   end
 
-  @canvas_queue.consume do |payload|
+  @canvas_queue.consume("next") do |payload|
     state = build_state_snapshot(payload)
     @mutation_callbacks.each(&.call(state))
   rescue ex : Exception

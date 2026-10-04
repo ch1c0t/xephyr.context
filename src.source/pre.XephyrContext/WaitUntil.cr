@@ -16,21 +16,29 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
 
   @mutation_callbacks << callback
   start_mutation_consumers
+  puts " [wait_until] waiting for #{expected.inspect}"
   yield
 
   recognizer = TextRecognizer.new
   started_at = Time.monotonic
   expected_text = expected.downcase
 
-  loop do
-    state = receive_waiting_state(waiter, expected, timeout, started_at)
-    text = recognizer.recognize(state)
+  begin
+    loop do
+      state = receive_waiting_state(waiter, expected, timeout, started_at)
+      text = recognizer.recognize(state)
+      puts " [wait_until] OCR: #{text.inspect}"
 
-    puts " [wait_until] OCR: #{text.inspect}"
-    return state if text.downcase.includes?(expected_text)
+      if text.downcase.includes?(expected_text)
+        puts " [wait_until] matched #{expected.inspect}"
+        return state
+      end
+    end
+  ensure
+    recognizer.finalize
   end
 ensure
-  @mutation_callbacks.try(&.delete(callback)) if callback
+  @mutation_callbacks.delete(callback) if callback
 end
 
 private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Span) : State

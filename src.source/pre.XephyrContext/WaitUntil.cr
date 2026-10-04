@@ -41,7 +41,7 @@ ensure
   @mutation_callbacks.delete(callback) if callback
 end
 
-private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Span) : State
+private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Instant) : State
   return waiter.receive unless timeout
 
   remaining = timeout - (Time.instant - started_at)

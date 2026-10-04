@@ -20,7 +20,7 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
   yield
 
   recognizer = TextRecognizer.new
-  started_at = Time.monotonic
+  started_at = Time.instant
   expected_text = expected.downcase
 
   begin
@@ -44,7 +44,7 @@ end
 private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Span) : State
   return waiter.receive unless timeout
 
-  remaining = timeout - (Time.monotonic - started_at)
+  remaining = timeout - (Time.instant - started_at)
   raise "Timed out waiting for #{expected.inspect}" if remaining <= 0.seconds
 
   select

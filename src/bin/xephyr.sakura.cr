@@ -37,8 +37,19 @@ def display_from_xephyr_run : String
   display
 end
 
+def kill_display(display : String) : Nil
+  status = Process.run(
+    KILL_COMMAND,
+    [display],
+    error: Process::Redirect::Inherit
+  )
+
+  raise "xephyr-kill failed for #{display}: #{status}" unless status.success?
+end
+
 display = display_from_xephyr_run
 context_process = nil.as(Process?)
+killed = false
 
 begin
   context_process = Process.new(
@@ -52,8 +63,9 @@ begin
   context.wait_until WORD
 
   context_process.try(&.terminate)
-  Process.run(KILL_COMMAND, [display], error: Process::Redirect::Inherit)
+  kill_display(display)
+  killed = true
 ensure
   context_process.try(&.terminate)
-  Process.run(KILL_COMMAND, [display], error: Process::Redirect::Inherit) if display
+  kill_display(display) unless killed
 end

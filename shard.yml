@@ -6,10 +6,10 @@ authors:
 targets:
   xephyr.context:
     main: src/bin/xephyr.context.cr
-  xephyr.sakura:
-    main: src/bin/xephyr.sakura.cr
   xephyr.log_changes:
     main: src/bin/xephyr.log_changes.cr
+  xephyr.sakura:
+    main: src/bin/xephyr.sakura.cr
   xephyr.save_screenshots_and_text:
     main: src/bin/xephyr.save_screenshots_and_text.cr
   xephyr.save_screenshots_to:

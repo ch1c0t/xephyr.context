@@ -23,7 +23,7 @@ class XephyrContext
         @current_spatial_data = parse_spatial_windows(payload)
       end
     
-      @canvas_queue.consume do |payload|
+      @canvas_queue.consume("next") do |payload|
         state = build_state_snapshot(payload)
         @mutation_callbacks.each(&.call(state))
       rescue ex : Exception
@@ -62,22 +62,40 @@ class XephyrContext
 
   class Queue
     getter name : String
+    getter stream : Bool
     
-    def initialize(@name : String, @channel : ::AMQP::Client::Channel)
-      queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
+    def initialize(@name : String, @channel : ::AMQP::Client::Channel, @stream : Bool = false)
+      queue_args = queue_arguments
       @channel.queue_declare(name: @name, args: queue_args, durable: true)
+    
+      @channel.prefetch(100) if @stream
     end
     
-    # Subscribes to the queue and yields a fully parsed JSON::Any object to the block
-    def consume(&block : JSON::Any ->) : Nil
-      @channel.basic_consume(@name, no_ack: true) do |msg|
+    def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
+      args = consumer_arguments(offset)
+    
+      @channel.basic_consume(@name, no_ack: !@stream, args: args) do |msg|
         begin
           payload = JSON.parse(msg.body_io)
           block.call payload
+          @channel.basic_ack(msg.delivery_tag) if @stream
         rescue ex : Exception
           puts " [XephyrContext Queue Error] Failed to parse stream payload: #{ex.message}"
+          @channel.basic_ack(msg.delivery_tag) if @stream
         end
       end
+    end
+    
+    private def queue_arguments
+      args = {"x-max-age" => "2D"}
+      args["x-queue-type"] = "stream" if @stream
+      ::AMQP::Client::Arguments.new(args)
+    end
+    
+    private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments
+      args = {} of String => String
+      args["x-stream-offset"] = offset if @stream && offset
+      ::AMQP::Client::Arguments.new(args)
     end
   end
 
@@ -152,18 +170,31 @@ class XephyrContext
     end
   end
 
+
+  module Replay
+    def replay_mutations(offset : String = "first", &block : State ->) : Nil
+      @canvas_queue.consume(offset) do |payload|
+        state = build_state_snapshot(payload)
+        block.call(state)
+      rescue ex : Exception
+        puts " [XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}"
+      end
+    end
+  end
+
   @display_number : String
   @current_spatial_data = [] of JSON::Any
   
   def initialize(display_target : String, channel : ::AMQP::Client::Channel)
     @display_number = display_target.delete(':')
-    @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.delta", channel
+    @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.stream", channel, true
     @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
   end
   
   include Private
   include EachMutation
   include WaitUntil
+  include Replay
 
   class TextRecognizer
     def initialize(@language : String = "eng")

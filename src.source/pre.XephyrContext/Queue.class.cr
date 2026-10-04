@@ -1,6 +1,8 @@
 getter name : String
 
 def initialize(@name : String, @channel : ::AMQP::Client::Channel)
+  queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
+  @channel.queue_declare(name: @name, args: queue_args, durable: true)
 end
 
 # Subscribes to the queue and yields a fully parsed JSON::Any object to the block

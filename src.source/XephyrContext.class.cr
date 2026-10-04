@@ -3,10 +3,11 @@
 
 def initialize(display_target : String, channel : ::AMQP::Client::Channel)
   @display_number = display_target.delete(':')
-  @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.delta", channel
+  @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.stream", channel, true
   @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
 end
 
 include Private
 include EachMutation
 include WaitUntil
+include Replay

@@ -5,7 +5,12 @@ end
 def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
   waiter = Channel(State).new(1)
   callback = Proc(State, Nil).new do |state|
-    waiter.send(state)
+    select
+    when waiter.send(state)
+    else
+      waiter.receive
+      waiter.send(state)
+    end
     nil
   end
 

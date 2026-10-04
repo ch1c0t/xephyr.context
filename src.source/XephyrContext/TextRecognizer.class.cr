@@ -14,6 +14,10 @@ def initialize(@language : String = "eng")
   end
 end
 
+def recognize(state : XephyrContext::State) : String
+  recognize(grayscale_pixels(state), state.width, state.height)
+end
+
 def recognize(pixels : Slice(UInt8), width : Int32, height : Int32) : String
   LibTesseract.TessBaseAPISetImage(
     @api,
@@ -37,4 +41,22 @@ end
 def finalize
   LibTesseract.TessBaseAPIEnd(@api)
   LibTesseract.TessBaseAPIDelete(@api)
+end
+
+private def grayscale_pixels(state : XephyrContext::State) : Slice(UInt8)
+  pixels = Slice(UInt8).new(state.width * state.height)
+  offset = 0
+
+  state.height.times do |y|
+    state.width.times do |x|
+      pixel = (y * state.width + x) * 4
+      b = state.raw_pixels[pixel]
+      g = state.raw_pixels[pixel + 1]
+      r = state.raw_pixels[pixel + 2]
+      pixels[offset] = ((r.to_i * 299 + g.to_i * 587 + b.to_i * 114) // 1000).to_u8
+      offset += 1
+    end
+  end
+
+  pixels
 end

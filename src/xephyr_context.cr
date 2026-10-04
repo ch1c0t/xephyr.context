@@ -6,15 +6,26 @@ require "./lib_tesseract"
 
 class XephyrContext
   module EachMutation
+    @mutation_callbacks = [] of Proc(State, Nil)
+    @mutation_consumers_started = false
+    
     def each_mutation(&block : State ->)
-      # Stream 1: Update the live layout metadata cache asynchronously
+      @mutation_callbacks << block
+      start_mutation_consumers
+    end
+    
+    private def start_mutation_consumers : Nil
+      return if @mutation_consumers_started
+    
+      @mutation_consumers_started = true
+    
       @spatial_queue.consume do |payload|
         @current_spatial_data = parse_spatial_windows(payload)
       end
     
-      # Stream 2: Assemble and deliver a mixed world state snapshot asynchronously
       @canvas_queue.consume do |payload|
-        block.call(build_state_snapshot(payload))
+        state = build_state_snapshot(payload)
+        @mutation_callbacks.each(&.call(state))
       rescue ex : Exception
         puts " [XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}"
       end
@@ -82,6 +93,65 @@ class XephyrContext
     end
   end
 
+  module WaitUntil
+    def wait_until(expected : String, timeout : Time::Span? = nil) : State
+      wait_until(expected, timeout) {}
+    end
+    
+    def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
+      waiter = Channel(State).new(1)
+      callback = Proc(State, Nil).new do |state|
+        select
+        when waiter.send(state)
+        else
+          waiter.receive
+          waiter.send(state)
+        end
+        nil
+      end
+    
+      @mutation_callbacks << callback
+      start_mutation_consumers
+      puts " [wait_until] waiting for #{expected.inspect}"
+      yield
+    
+      recognizer = TextRecognizer.new
+      started_at = Time.monotonic
+      expected_text = expected.downcase
+    
+      begin
+        loop do
+          state = receive_waiting_state(waiter, expected, timeout, started_at)
+          text = recognizer.recognize(state)
+          puts " [wait_until] OCR: #{text.inspect}"
+    
+          if text.downcase.includes?(expected_text)
+            puts " [wait_until] matched #{expected.inspect}"
+            return state
+          end
+        end
+      ensure
+        recognizer.finalize
+      end
+    ensure
+      @mutation_callbacks.delete(callback) if callback
+    end
+    
+    private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Span) : State
+      return waiter.receive unless timeout
+    
+      remaining = timeout - (Time.monotonic - started_at)
+      raise "Timed out waiting for #{expected.inspect}" if remaining <= 0.seconds
+    
+      select
+      when state = waiter.receive
+        state
+      when timeout(remaining)
+        raise "Timed out waiting for #{expected.inspect}"
+      end
+    end
+  end
+
   @display_number : String
   @current_spatial_data = [] of JSON::Any
   
@@ -93,6 +163,7 @@ class XephyrContext
   
   include Private
   include EachMutation
+  include WaitUntil
 
   class TextRecognizer
     def initialize(@language : String = "eng")
@@ -109,6 +180,10 @@ class XephyrContext
         LibTesseract.TessBaseAPIDelete(@api)
         raise "Tesseract failed to initialize for language #{@language} (exit code #{status})"
       end
+    end
+    
+    def recognize(state : XephyrContext::State) : String
+      recognize(grayscale_pixels(state), state.width, state.height)
     end
     
     def recognize(pixels : Slice(UInt8), width : Int32, height : Int32) : String
@@ -134,6 +209,24 @@ class XephyrContext
     def finalize
       LibTesseract.TessBaseAPIEnd(@api)
       LibTesseract.TessBaseAPIDelete(@api)
+    end
+    
+    private def grayscale_pixels(state : XephyrContext::State) : Slice(UInt8)
+      pixels = Slice(UInt8).new(state.width * state.height)
+      offset = 0
+    
+      state.height.times do |y|
+        state.width.times do |x|
+          pixel = (y * state.width + x) * 4
+          b = state.raw_pixels[pixel]
+          g = state.raw_pixels[pixel + 1]
+          r = state.raw_pixels[pixel + 2]
+          pixels[offset] = ((r.to_i * 299 + g.to_i * 587 + b.to_i * 114) // 1000).to_u8
+          offset += 1
+        end
+      end
+    
+      pixels
     end
   end
 end

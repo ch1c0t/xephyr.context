@@ -18,7 +18,7 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
   expected_text = expected.downcase
 
   loop do
-    state = receive_waiting_state(waiter, timeout, started_at)
+    state = receive_waiting_state(waiter, expected, timeout, started_at)
     text = recognizer.recognize(state)
 
     puts " [wait_until] OCR: #{text.inspect}"
@@ -28,11 +28,11 @@ ensure
   @mutation_callbacks.try(&.delete(callback)) if callback
 end
 
-private def receive_waiting_state(waiter : Channel(State), timeout : Time::Span?, started_at : Time::Span) : State
+private def receive_waiting_state(waiter : Channel(State), expected : String, timeout : Time::Span?, started_at : Time::Span) : State
   return waiter.receive unless timeout
 
   remaining = timeout - (Time.monotonic - started_at)
-  raise "Timed out waiting for #{expected.inspect}" if remaining <= Time::Span.zero
+  raise "Timed out waiting for #{expected.inspect}" if remaining <= 0.seconds
 
   select
   when state = waiter.receive

@@ -1,14 +1,21 @@
 getter name : String
+getter stream : Bool
 
-def initialize(@name : String)
-  # Pull the non-nillable global channel context directly on allocation
+def initialize(@name : String, @stream : Bool = false)
   @channel = Global.amqp_channel
 
-  # Declare synchronously instantly to assert queue presence on LavinMQ
-  queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
+  queue_args = queue_arguments
   @channel.queue_declare(name: @name, args: queue_args, durable: true)
+
+  @channel.prefetch(100) if @stream
 end
 
 def publish(message : String) : Nil
   @channel.basic_publish(message, exchange: "", routing_key: @name)
+end
+
+private def queue_arguments
+  args = {"x-max-age" => "2D"}
+  args["x-queue-type"] = "stream" if @stream
+  ::AMQP::Client::Arguments.new(args)
 end

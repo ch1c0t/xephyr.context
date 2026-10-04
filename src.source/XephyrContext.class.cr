@@ -9,3 +9,4 @@ end
 
 include Private
 include EachMutation
+include WaitUntil

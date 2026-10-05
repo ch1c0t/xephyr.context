@@ -1,36 +1,26 @@
 getter name : String
-getter stream : Bool
 
-def initialize(@name : String, @channel : ::AMQP::Client::Channel, @stream : Bool = false)
-  queue_args = queue_arguments
+def initialize(@name : String, @channel : ::AMQP::Client::Channel)
+  queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
   @channel.queue_declare(name: @name, args: queue_args, durable: true)
-
-  @channel.prefetch(100) if @stream
 end
 
-def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
-  args = consumer_arguments(offset)
+def consume(&block : JSON::Any ->) : Nil
+  puts " [Queue] consume name=#{@name.inspect}"
 
-  @channel.basic_consume(@name, no_ack: !@stream, args: args) do |msg|
+  @channel.basic_consume(@name, no_ack: true) do |msg|
+    puts " [Queue] message received name=#{@name.inspect}"
+
     begin
       payload = JSON.parse(msg.body_io)
+      puts " [Queue] payload parsed name=#{@name.inspect}"
+
       block.call payload
-      @channel.basic_ack(msg.delivery_tag) if @stream
+      puts " [Queue] callback completed name=#{@name.inspect}"
     rescue ex : Exception
-      puts " [XephyrContext Queue Error] Failed to parse stream payload: #{ex.message}"
-      @channel.basic_ack(msg.delivery_tag) if @stream
+      puts " [Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
     end
   end
-end
 
-private def queue_arguments
-  args = {"x-max-age" => "2D"}
-  args["x-queue-type"] = "stream" if @stream
-  ::AMQP::Client::Arguments.new(args)
-end
-
-private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments
-  args = {} of String => String
-  args["x-stream-offset"] = offset if @stream && offset
-  ::AMQP::Client::Arguments.new(args)
+  puts " [Queue] basic_consume registered name=#{@name.inspect}"
 end

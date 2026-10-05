@@ -62,40 +62,30 @@ class XephyrContext
 
   class Queue
     getter name : String
-    getter stream : Bool
     
-    def initialize(@name : String, @channel : ::AMQP::Client::Channel, @stream : Bool = false)
-      queue_args = queue_arguments
+    def initialize(@name : String, @channel : ::AMQP::Client::Channel)
+      queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
       @channel.queue_declare(name: @name, args: queue_args, durable: true)
-    
-      @channel.prefetch(100) if @stream
     end
     
-    def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
-      args = consumer_arguments(offset)
+    def consume(&block : JSON::Any ->) : Nil
+      puts " [Queue] consume name=#{@name.inspect}"
     
-      @channel.basic_consume(@name, no_ack: !@stream, args: args) do |msg|
+      @channel.basic_consume(@name, no_ack: true) do |msg|
+        puts " [Queue] message received name=#{@name.inspect}"
+    
         begin
           payload = JSON.parse(msg.body_io)
+          puts " [Queue] payload parsed name=#{@name.inspect}"
+    
           block.call payload
-          @channel.basic_ack(msg.delivery_tag) if @stream
+          puts " [Queue] callback completed name=#{@name.inspect}"
         rescue ex : Exception
-          puts " [XephyrContext Queue Error] Failed to parse stream payload: #{ex.message}"
-          @channel.basic_ack(msg.delivery_tag) if @stream
+          puts " [Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
         end
       end
-    end
     
-    private def queue_arguments
-      args = {"x-max-age" => "2D"}
-      args["x-queue-type"] = "stream" if @stream
-      ::AMQP::Client::Arguments.new(args)
-    end
-    
-    private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments
-      args = {} of String => String
-      args["x-stream-offset"] = offset if @stream && offset
-      ::AMQP::Client::Arguments.new(args)
+      puts " [Queue] basic_consume registered name=#{@name.inspect}"
     end
   end
 
@@ -119,6 +109,54 @@ class XephyrContext
     getter height : Int32
     
     def initialize(@windows, @raw_pixels, @timestamp, @width, @height)
+    end
+  end
+
+  class Stream
+    getter name : String
+    
+    def initialize(@name : String, @channel : ::AMQP::Client::Channel)
+      queue_args = ::AMQP::Client::Arguments.new({
+        "x-max-age" => "2D",
+        "x-queue-type" => "stream",
+      })
+    
+      puts " [Stream] declare name=#{@name.inspect}"
+      @channel.queue_declare(name: @name, args: queue_args, durable: true)
+      @channel.prefetch(100)
+    end
+    
+    def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
+      puts " [Stream] consume name=#{@name.inspect} offset=#{offset.inspect}"
+    
+      args = consumer_arguments(offset)
+      puts " [Stream] basic_consume name=#{@name.inspect}"
+    
+      @channel.basic_consume(@name, no_ack: false, args: args) do |msg|
+        puts " [Stream] message received name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
+    
+        begin
+          payload = JSON.parse(msg.body_io)
+          puts " [Stream] payload parsed name=#{@name.inspect}"
+    
+          block.call payload
+          puts " [Stream] callback completed name=#{@name.inspect}"
+    
+          @channel.basic_ack(msg.delivery_tag)
+          puts " [Stream] message acknowledged name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
+        rescue ex : Exception
+          puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
+          @channel.basic_ack(msg.delivery_tag)
+        end
+      end
+    
+      puts " [Stream] basic_consume registered name=#{@name.inspect}"
+    end
+    
+    private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments
+      args = {} of String => String
+      args["x-stream-offset"] = offset if offset
+      ::AMQP::Client::Arguments.new(args)
     end
   end
 
@@ -186,7 +224,7 @@ class XephyrContext
   
   def initialize(display_target : String, channel : ::AMQP::Client::Channel)
     @display_number = display_target.delete(':')
-    @canvas_queue  = Queue.new "xephyr.#{@display_number}.canvas.stream", channel, true
+    @canvas_queue  = Stream.new "xephyr.#{@display_number}.canvas.stream", channel
     @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
   end
   

@@ -1,5 +1,5 @@
 require "../global"
 require "../xephyr_context"
-require "../Sakura"
+require "../sakura"
 
 Sakura.new.run

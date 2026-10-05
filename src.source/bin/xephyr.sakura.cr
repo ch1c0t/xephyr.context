@@ -2,7 +2,7 @@ require "../global"
 require "../xephyr_context"
 
 DISPLAY_COMMAND = "xephyr-run"
-CONTEXT_COMMAND = "xephyr.context"
+CONTEXT_COMMAND = "./bin/xephyr.context"
 KILL_COMMAND = "xephyr-kill"
 WORD = "close"
 

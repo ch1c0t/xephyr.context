@@ -12,7 +12,10 @@ end
 ocr = options.delete("--ocr")
 once = options.delete("--once")
 save_index = options.index("--save-dir")
-save_dir = save_index.try { |index| options.delete_at(index + 1) }
+save_dir = save_index.try do |index|
+  options.delete_at(index)
+  options.delete_at(index)
+end
 
 count = if once
   1

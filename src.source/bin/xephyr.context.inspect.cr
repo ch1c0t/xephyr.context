@@ -9,8 +9,8 @@ if options.includes?("--help") || options.includes?("-h")
   exit
 end
 
-ocr = options.delete("--ocr")
-once = options.delete("--once")
+ocr = !options.delete("--ocr").nil?
+once = !options.delete("--once").nil?
 save_index = options.index("--save-dir")
 save_dir = save_index.try do |index|
   options.delete_at(index)

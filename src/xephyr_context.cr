@@ -298,6 +298,7 @@ class XephyrContext
     end
   end
 
+
   class Inspector
     getter display : String
     getter context : XephyrContext
@@ -313,6 +314,7 @@ class XephyrContext
     ) : Nil
       recognizer = XephyrContext::TextRecognizer.new if ocr
       seen = 0
+      done = Channel(Nil).new(1)
     
       begin
         @context.each_mutation do |state|
@@ -320,11 +322,11 @@ class XephyrContext
           report(state, recognizer, save_dir)
     
           if count && seen >= count
-            exit
+            done.send(nil)
           end
         end
     
-        sleep
+        count ? done.receive : sleep
       ensure
         recognizer.try(&.finalize)
       end
@@ -348,5 +350,4 @@ class XephyrContext
       end
     end
     
-  end
-end
+  endend

@@ -12,6 +12,7 @@ def watch(
 ) : Nil
   recognizer = XephyrContext::TextRecognizer.new if ocr
   seen = 0
+  done = Channel(Nil).new(1)
 
   begin
     @context.each_mutation do |state|
@@ -19,11 +20,11 @@ def watch(
       report(state, recognizer, save_dir)
 
       if count && seen >= count
-        exit
+        done.send(nil)
       end
     end
 
-    sleep
+    count ? done.receive : sleep
   ensure
     recognizer.try(&.finalize)
   end

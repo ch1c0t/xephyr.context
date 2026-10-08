@@ -2,9 +2,12 @@ class Sakura
   DISPLAY_COMMAND = "xephyr-run"
   CONTEXT_COMMAND = "./bin/xephyr.context"
 
+  @display_process : Process?
+  @context_process : Process?
+
   def initialize
-    @display_process : Process?
-    @context_process : Process?
+    @display_process = nil
+    @context_process = nil
   end
 
   def run : Nil
@@ -34,10 +37,10 @@ class Sakura
       error: Process::Redirect::Inherit
     )
 
-    display = @display_process.output.gets.try(&.strip)
+    display = @display_process.not_nil!.output.gets.try(&.strip)
     raise "xephyr-run did not return a display" unless display
 
-    @display_process.wait
+    @display_process.not_nil!.wait
     display
   end
 

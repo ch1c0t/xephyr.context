@@ -352,11 +352,14 @@ class XephyrContext
       puts "[MUTATION] timestamp=#{state.timestamp} size=#{state.width}x#{state.height} " +
            "pixels=#{state.raw_pixels.size} windows=#{state.windows.size}"
 
-      puts "  [OCR] #{recognizer.recognize(state).strip.inspect}" if recognizer
+      screenshot = Screenshot.new(state, recognizer)
+      text = recognizer.try { screenshot.recognized_text }
+      puts "  [OCR] #{text.not_nil!.strip.inspect}" if text
 
       if save_dir
-        Screenshot.new(state).save_to(save_dir)
+        screenshot.save_to(save_dir, save_image: true, save_text: !text.nil?)
         puts "  [SAVED] #{File.join(save_dir, "frame_#{state.timestamp}.png")}"
+        puts "  [SAVED] #{File.join(save_dir, "frame_#{state.timestamp}.txt")}" if text
       end
     end
   end

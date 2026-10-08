@@ -3,6 +3,7 @@ require "stumpy_png"
 require "./xephyr_context"
 
 class Screenshot
+  @recognized_text : String?
   module Helpers
     private def rgb_pixel(offset : Int) : {UInt8, UInt8, UInt8}
       raw_bytes = @state.raw_pixels
@@ -70,9 +71,13 @@ class Screenshot
   end
 
   module WriteText
+    def recognized_text : String
+      @recognized_text ||= recognize_text
+    end
+
     private def write_text(dir : String) : Nil
       path = File.join(dir, "frame_#{@state.timestamp}.txt")
-      File.write(path, recognize_text)
+      File.write(path, recognized_text)
     end
     
     private def recognize_text : String

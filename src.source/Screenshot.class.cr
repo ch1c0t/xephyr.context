@@ -1,3 +1,5 @@
+@recognized_text : String?
+
 def initialize(@state : XephyrContext::State, @text_recognizer : XephyrContext::TextRecognizer? = nil)
 end
 

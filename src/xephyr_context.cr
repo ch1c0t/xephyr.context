@@ -8,22 +8,37 @@ class XephyrContext
   module EachMutation
     @mutation_callbacks = [] of Proc(State, Nil)
     @mutation_consumers_started = false
+    @stopped = false
     
     def each_mutation(&block : State ->)
+      raise "XephyrContext is stopped" if @stopped
+    
       @mutation_callbacks << block
       start_mutation_consumers
     end
     
+    def stop : Nil
+      return if @stopped
+    
+      @stopped = true
+      @mutation_callbacks.clear
+      @canvas_queue.stop
+      @spatial_queue.stop
+    end
+    
     private def start_mutation_consumers : Nil
-      return if @mutation_consumers_started
+      return if @mutation_consumers_started || @stopped
     
       @mutation_consumers_started = true
     
-      @spatial_queue.consume do |payload|
+      @spatial_queue.consume("#{@consumer_prefix}-spatial") do |payload|
+        next if @stopped
         @current_spatial_data = parse_spatial_windows(payload)
       end
     
-      @canvas_queue.consume("next") do |payload|
+      @canvas_queue.consume("next", "#{@consumer_prefix}-canvas") do |payload|
+        next if @stopped
+    
         state = build_state_snapshot(payload)
         @mutation_callbacks.each(&.call(state))
       rescue ex : Exception
@@ -62,16 +77,20 @@ class XephyrContext
 
   class Queue
     getter name : String
+    @consumer_tag : String? = nil
     
     def initialize(@name : String, @channel : ::AMQP::Client::Channel)
       queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
       @channel.queue_declare(name: @name, args: queue_args, durable: true)
     end
     
-    def consume(&block : JSON::Any ->) : Nil
+    def consume(consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
       puts " [Queue] consume name=#{@name.inspect}"
     
-      @channel.basic_consume(@name, no_ack: true) do |msg|
+      @consumer_tag = consumer_tag
+      @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: true) do |msg|
+        next if @consumer_tag.nil?
+    
         puts " [Queue] message received name=#{@name.inspect}"
     
         begin
@@ -86,6 +105,14 @@ class XephyrContext
       end
     
       puts " [Queue] basic_consume registered name=#{@name.inspect}"
+    end
+    
+    def stop : Nil
+      consumer_tag = @consumer_tag
+      return unless consumer_tag
+    
+      @consumer_tag = nil
+      @channel.basic_cancel(consumer_tag)
     end
   end
 
@@ -114,6 +141,7 @@ class XephyrContext
 
   class Stream
     getter name : String
+    @consumer_tag : String? = nil
     
     def initialize(@name : String, @channel : ::AMQP::Client::Channel)
       queue_args = ::AMQP::Client::Arguments.new({
@@ -126,13 +154,19 @@ class XephyrContext
       @channel.prefetch(100)
     end
     
-    def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
+    def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
       puts " [Stream] consume name=#{@name.inspect} offset=#{offset.inspect}"
     
       args = consumer_arguments(offset)
       puts " [Stream] basic_consume name=#{@name.inspect}"
     
-      @channel.basic_consume(@name, no_ack: false, args: args) do |msg|
+      @consumer_tag = consumer_tag
+      @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
+        if @consumer_tag.nil?
+          @channel.basic_ack(msg.delivery_tag)
+          next
+        end
+    
         puts " [Stream] message received name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
     
         begin
@@ -151,6 +185,14 @@ class XephyrContext
       end
     
       puts " [Stream] basic_consume registered name=#{@name.inspect}"
+    end
+    
+    def stop : Nil
+      consumer_tag = @consumer_tag
+      return unless consumer_tag
+    
+      @consumer_tag = nil
+      @channel.basic_cancel(consumer_tag)
     end
     
     private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments
@@ -220,10 +262,12 @@ class XephyrContext
   end
 
   @display_number : String
+  @consumer_prefix : String
   @current_spatial_data = [] of JSON::Any
   
   def initialize(display_target : String, channel : ::AMQP::Client::Channel)
     @display_number = display_target.delete(':')
+    @consumer_prefix = "xephyr-context-#{object_id}"
     @canvas_queue  = Stream.new "xephyr.#{@display_number}.canvas.stream", channel
     @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
   end

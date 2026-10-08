@@ -1,3 +1,19 @@
+require "./xephyr.context.inspect/*"
+
+VERSION = "0.0.0"
+
+case ARGV.size
+when 1
+  case ARGV[0]
+  when "-v", "version", "--version"
+    puts VERSION
+    exit
+  when "-h", "help", "--help"
+    print_help
+    exit
+  end
+end
+
 require "../global"
 require "../xephyr_context"
 require "../screenshot"
@@ -28,13 +44,13 @@ else
 end
 
 unless options.empty? || options == ["--watch"]
-  warn "Unknown arguments: #{options.join(" ")}"
-  warn "Use --help for usage."
+  STDERR.puts "Unknown arguments: #{options.join(" ")}"
+  STDERR.puts "Use --help for usage."
   exit 1
 end
 
 unless count.nil? || count > 0
-  warn "--count must be greater than zero."
+  STDERR.puts "--count must be greater than zero."
   exit 1
 end
 

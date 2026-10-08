@@ -3,6 +3,7 @@ require "stumpy_png"
 require "./xephyr_context"
 
 class Screenshot
+  @recognized_text : String?
   module Helpers
     private def rgb_pixel(offset : Int) : {UInt8, UInt8, UInt8}
       raw_bytes = @state.raw_pixels
@@ -70,8 +71,6 @@ class Screenshot
   end
 
   module WriteText
-    @recognized_text : String?
-
     def recognized_text : String
       @recognized_text ||= recognize_text
     end

@@ -21,5 +21,5 @@ private def inflate_canvas_bytes(base64_string : String) : Slice(UInt8)
   compressed_bytes = Base64.decode(base64_string)
   decompressed_io = IO::Memory.new
   IO.copy(Compress::Deflate::Reader.new(IO::Memory.new(compressed_bytes)), decompressed_io)
-  decompressed_io.to_slice
+  decompressed_io.to_slice.dup
 end

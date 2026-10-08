@@ -70,9 +70,15 @@ class Screenshot
   end
 
   module WriteText
+    @recognized_text : String?
+
+    def recognized_text : String
+      @recognized_text ||= recognize_text
+    end
+
     private def write_text(dir : String) : Nil
       path = File.join(dir, "frame_#{@state.timestamp}.txt")
-      File.write(path, recognize_text)
+      File.write(path, recognized_text)
     end
     
     private def recognize_text : String

@@ -11,6 +11,11 @@ end
 
 ocr = !options.delete("--ocr").nil?
 once = !options.delete("--once").nil?
+replay_index = options.index("--replay")
+replay_offset = replay_index.try do |index|
+  options.delete_at(index)
+  options.delete_at(index)
+end
 save_index = options.index("--save-dir")
 save_dir = save_index.try do |index|
   options.delete_at(index)
@@ -28,23 +33,31 @@ else
 end
 
 unless options.empty? || options == ["--watch"]
-  warn "Unknown arguments: #{options.join(" ")}"
-  warn "Use --help for usage."
+  STDERR.puts "Unknown arguments: #{options.join(" ")}"
+  STDERR.puts "Use --help for usage."
+  exit 1
+end
+
+if replay_offset && replay_offset.empty?
+  STDERR.puts "--replay requires an offset."
   exit 1
 end
 
 unless count.nil? || count > 0
-  warn "--count must be greater than zero."
+  STDERR.puts "--count must be greater than zero."
   exit 1
 end
 
-if save_dir
-  FileUtils.mkdir_p(save_dir)
-end
+FileUtils.mkdir_p(save_dir) if save_dir
 
 puts "[Boot] Inspecting Xephyr display #{Global.display}."
+puts "[Mode] Replaying from #{replay_offset.inspect}." if replay_offset
 puts "[Mode] OCR enabled." if ocr
 puts "[Mode] Saving screenshots to #{save_dir}." if save_dir
 
 inspector = XephyrContext::Inspector.new(Global.display, Global.amqp_channel)
-inspector.watch(ocr: ocr, save_dir: save_dir, count: count)
+if replay_offset
+  inspector.replay(replay_offset, ocr: ocr, save_dir: save_dir, count: count)
+else
+  inspector.watch(ocr: ocr, save_dir: save_dir, count: count)
+end

@@ -1,4 +1,5 @@
 getter name : String
+@consumer_tag : String? = nil
 
 def initialize(@name : String, @channel : ::AMQP::Client::Channel)
   queue_args = ::AMQP::Client::Arguments.new({
@@ -11,13 +12,16 @@ def initialize(@name : String, @channel : ::AMQP::Client::Channel)
   @channel.prefetch(100)
 end
 
-def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
+def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
   puts " [Stream] consume name=#{@name.inspect} offset=#{offset.inspect}"
 
   args = consumer_arguments(offset)
   puts " [Stream] basic_consume name=#{@name.inspect}"
 
-  @channel.basic_consume(@name, no_ack: false, args: args) do |msg|
+  @consumer_tag = consumer_tag
+  @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
+    next if @consumer_tag.nil?
+
     puts " [Stream] message received name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
 
     begin
@@ -36,6 +40,14 @@ def consume(offset : String? = nil, &block : JSON::Any ->) : Nil
   end
 
   puts " [Stream] basic_consume registered name=#{@name.inspect}"
+end
+
+def stop : Nil
+  consumer_tag = @consumer_tag
+  return unless consumer_tag
+
+  @consumer_tag = nil
+  @channel.basic_cancel(consumer_tag)
 end
 
 private def consumer_arguments(offset : String?) : ::AMQP::Client::Arguments

@@ -21,7 +21,6 @@ class XephyrContext
       return if @stopped
     
       @stopped = true
-      @mutation_callbacks.clear
       begin
         @canvas_queue.stop
       ensure

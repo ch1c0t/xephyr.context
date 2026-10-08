@@ -20,7 +20,10 @@ def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON:
 
   @consumer_tag = consumer_tag
   @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
-    next if @consumer_tag.nil?
+    if @consumer_tag.nil?
+      @channel.basic_ack(msg.delivery_tag)
+      next
+    end
 
     puts " [Stream] message received name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
 

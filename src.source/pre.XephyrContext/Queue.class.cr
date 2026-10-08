@@ -1,5 +1,6 @@
 getter name : String
 @consumer_tag : String? = nil
+@stopped = false
 
 def initialize(@name : String, @channel : ::AMQP::Client::Channel)
   queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
@@ -10,8 +11,9 @@ def consume(consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
   puts " [Queue] consume name=#{@name.inspect}"
 
   @consumer_tag = consumer_tag
+  @stopped = false
   @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: true) do |msg|
-    next if @consumer_tag.nil?
+    next if @stopped
 
     puts " [Queue] message received name=#{@name.inspect}"
 
@@ -30,6 +32,7 @@ def consume(consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
 end
 
 def stop : Nil
+  @stopped = true
   consumer_tag = @consumer_tag
   return unless consumer_tag
 

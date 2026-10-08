@@ -22,8 +22,11 @@ class XephyrContext
     
       @stopped = true
       @mutation_callbacks.clear
-      @canvas_queue.stop
-      @spatial_queue.stop
+      begin
+        @canvas_queue.stop
+      ensure
+        @spatial_queue.stop
+      end
     end
     
     private def start_mutation_consumers : Nil

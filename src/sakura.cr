@@ -1,3 +1,6 @@
+class Sakura
+end
+
 class Sakura::Supervisor
   DISPLAY_COMMAND = "xephyr-run"
   CONTEXT_COMMAND = "./bin/xephyr.context"

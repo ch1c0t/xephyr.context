@@ -51,8 +51,8 @@ private def report(
        "pixels=#{state.raw_pixels.size} windows=#{state.windows.size}"
 
   screenshot = Screenshot.new(state, recognizer)
-  text = recognizer.try { screenshot.recognized_text }
-  puts "  [OCR] #{text.not_nil!.strip.inspect}" if text
+  text = recognizer ? screenshot.recognized_text : nil
+  puts "  [OCR] #{text.strip.inspect}" if text
 
   if save_dir
     screenshot.save_to(save_dir, save_image: true, save_text: !text.nil?)

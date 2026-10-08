@@ -119,7 +119,8 @@ class XephyrContext
       @consumer_tag = nil
       @channel.basic_cancel(consumer_tag)
     end
-    
+  end
+
   module Replay
     def replay_mutations(offset : String = "first", &block : State ->) : Nil
       @canvas_queue.consume(offset) do |payload|
@@ -214,7 +215,8 @@ class XephyrContext
       args["x-stream-offset"] = offset if offset
       ::AMQP::Client::Arguments.new(args)
     end
-    
+  end
+
   module WaitUntil
     def wait_until(expected : String, timeout : Time::Span? = nil) : State
       wait_until(expected, timeout) {}

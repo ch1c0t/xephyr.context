@@ -178,20 +178,15 @@ class XephyrContext
           next
         end
     
-        puts " [Stream] message received name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
-    
         begin
           payload = JSON.parse(msg.body_io)
-          puts " [Stream] payload parsed name=#{@name.inspect}"
     
           block.call payload
-          puts " [Stream] callback completed name=#{@name.inspect}"
         rescue ex : Exception
           puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
         ensure
           begin
             @channel.basic_ack(msg.delivery_tag)
-            puts " [Stream] message acknowledged name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
           rescue ack_error : Exception
             STDERR.puts " [Stream] ACK failed: #{ack_error.class}: #{ack_error.message}"
           end
@@ -224,12 +219,25 @@ class XephyrContext
     
     def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
       waiter = Channel(State).new(1)
+      # Never block the AMQP consumer while OCR is processing a frame.
+      # Keep only the newest state waiting for the recognizer.
       callback = Proc(State, Nil).new do |state|
         select
         when waiter.send(state)
         else
-          waiter.receive
-          waiter.send(state)
+          select
+          when waiter.receive
+            nil
+          else
+            nil
+          end
+
+          select
+          when waiter.send(state)
+            nil
+          else
+            nil
+          end
         end
         nil
       end

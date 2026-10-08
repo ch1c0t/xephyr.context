@@ -1,4 +1,7 @@
 class Sakura
+end
+
+class Sakura
   def initialize
     @supervisor = Sakura::Supervisor.new
   end

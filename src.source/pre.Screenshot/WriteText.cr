@@ -1,5 +1,3 @@
-@recognized_text : String?
-
 def recognized_text : String
   @recognized_text ||= recognize_text
 end

@@ -1,66 +1,42 @@
-class Sakura
+class Sakura::Supervisor
   DISPLAY_COMMAND = "xephyr-run"
   CONTEXT_COMMAND = "./bin/xephyr.context"
+  KILL_COMMAND = "xephyr-kill"
 
   @display_process : Process?
   @context_process : Process?
+  @display : String?
 
   def initialize
     @display_process = nil
     @context_process = nil
+    @display = nil
   end
 
-  def run : Nil
-    install_termination_handler
-    display = start_display
-    @context_process = start_context(display)
-
-    begin
-      wait_for_word(display)
-    ensure
-      cleanup
-    end
-  end
-
-  private def install_termination_handler : Nil
-    Process.on_terminate do
-      cleanup
-      Process.exit
-    end
-  end
-
-  private def start_display : String
+  def start : String
     @display_process = Process.new(
-      "setsid",
-      [DISPLAY_COMMAND, "sakura"],
+      DISPLAY_COMMAND,
+      ["sakura"],
       output: Process::Redirect::Pipe,
       error: Process::Redirect::Inherit
     )
 
-    display = @display_process.not_nil!.output.gets.try(&.strip)
-    raise "xephyr-run did not return a display" unless display
+    @display = @display_process.not_nil!.output.gets.try(&.strip)
+    raise "xephyr-run did not return a display" unless @display
 
-    @display_process.not_nil!.wait
-    display
-  end
-
-  private def start_context(display : String) : Process
-    Process.new(
+    @context_process = Process.new(
       CONTEXT_COMMAND,
-      env: {"DISPLAY_TARGET" => display},
+      env: {"DISPLAY_TARGET" => @display.not_nil!},
       output: Process::Redirect::Inherit,
       error: Process::Redirect::Inherit
     )
+
+    @display.not_nil!
   end
 
-  private def wait_for_word(display : String) : Nil
-    context = XephyrContext.new(display, Global.amqp_channel)
-    context.wait_until "close"
-  end
-
-  private def cleanup : Nil
+  def stop : Nil
     terminate(@context_process)
-    terminate_process_group(@display_process)
+    kill_display(@display)
   end
 
   private def terminate(process : Process?) : Nil
@@ -70,13 +46,39 @@ class Sakura
     end
   end
 
-  private def terminate_process_group(process : Process?) : Nil
-    process.try do |current|
-      pid = current.pid
-      Process.signal(Signal::TERM, -pid)
-      sleep 100.milliseconds
-      Process.signal(Signal::KILL, -pid)
+  private def kill_display(display : String?) : Nil
+    display.try do |current|
+      Process.run(KILL_COMMAND, [current], error: Process::Redirect::Inherit)
     rescue RuntimeError
     end
+  end
+end
+
+class Sakura
+  def initialize
+    @supervisor = Sakura::Supervisor.new
+  end
+
+  def run : Nil
+    install_termination_handler
+    display = @supervisor.start
+
+    begin
+      wait_for_word(display)
+    ensure
+      @supervisor.stop
+    end
+  end
+
+  private def install_termination_handler : Nil
+    Process.on_terminate do
+      @supervisor.stop
+      Process.exit
+    end
+  end
+
+  private def wait_for_word(display : String) : Nil
+    context = XephyrContext.new(display, Global.amqp_channel)
+    context.wait_until "close"
   end
 end

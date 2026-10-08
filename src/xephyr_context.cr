@@ -81,6 +81,7 @@ class XephyrContext
   class Queue
     getter name : String
     @consumer_tag : String? = nil
+    @stopped = false
     
     def initialize(@name : String, @channel : ::AMQP::Client::Channel)
       queue_args = ::AMQP::Client::Arguments.new({"x-max-age" => "2D"})
@@ -91,8 +92,9 @@ class XephyrContext
       puts " [Queue] consume name=#{@name.inspect}"
     
       @consumer_tag = consumer_tag
+      @stopped = false
       @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: true) do |msg|
-        next if @consumer_tag.nil?
+        next if @stopped
     
         puts " [Queue] message received name=#{@name.inspect}"
     
@@ -111,14 +113,14 @@ class XephyrContext
     end
     
     def stop : Nil
+      @stopped = true
       consumer_tag = @consumer_tag
       return unless consumer_tag
     
       @consumer_tag = nil
       @channel.basic_cancel(consumer_tag)
     end
-  end
-
+    
   module Replay
     def replay_mutations(offset : String = "first", &block : State ->) : Nil
       @canvas_queue.consume(offset) do |payload|
@@ -145,6 +147,7 @@ class XephyrContext
   class Stream
     getter name : String
     @consumer_tag : String? = nil
+    @stopped = false
     
     def initialize(@name : String, @channel : ::AMQP::Client::Channel)
       queue_args = ::AMQP::Client::Arguments.new({
@@ -164,9 +167,14 @@ class XephyrContext
       puts " [Stream] basic_consume name=#{@name.inspect}"
     
       @consumer_tag = consumer_tag
+      @stopped = false
       @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
-        if @consumer_tag.nil?
-          @channel.basic_ack(msg.delivery_tag)
+        if @stopped
+          begin
+            @channel.basic_ack(msg.delivery_tag)
+          rescue ex : Exception
+            STDERR.puts " [Stream] ACK after stop failed: #{ex.class}: #{ex.message}"
+          end
           next
         end
     
@@ -178,12 +186,15 @@ class XephyrContext
     
           block.call payload
           puts " [Stream] callback completed name=#{@name.inspect}"
-    
-          @channel.basic_ack(msg.delivery_tag)
-          puts " [Stream] message acknowledged name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
         rescue ex : Exception
           puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
-          @channel.basic_ack(msg.delivery_tag)
+        ensure
+          begin
+            @channel.basic_ack(msg.delivery_tag)
+            puts " [Stream] message acknowledged name=#{@name.inspect} delivery_tag=#{msg.delivery_tag}"
+          rescue ack_error : Exception
+            STDERR.puts " [Stream] ACK failed: #{ack_error.class}: #{ack_error.message}"
+          end
         end
       end
     
@@ -191,6 +202,7 @@ class XephyrContext
     end
     
     def stop : Nil
+      @stopped = true
       consumer_tag = @consumer_tag
       return unless consumer_tag
     
@@ -203,8 +215,7 @@ class XephyrContext
       args["x-stream-offset"] = offset if offset
       ::AMQP::Client::Arguments.new(args)
     end
-  end
-
+    
   module WaitUntil
     def wait_until(expected : String, timeout : Time::Span? = nil) : State
       wait_until(expected, timeout) {}

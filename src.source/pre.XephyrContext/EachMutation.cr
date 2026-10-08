@@ -1,7 +1,6 @@
 @mutation_callbacks = [] of Proc(State, Nil)
 @mutation_consumers_started = false
 @stopped = false
-@consumer_prefix : String
 
 def each_mutation(&block : State ->)
   raise "XephyrContext is stopped" if @stopped

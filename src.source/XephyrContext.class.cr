@@ -1,4 +1,5 @@
 @display_number : String
+@consumer_prefix : String
 @current_spatial_data = [] of JSON::Any
 
 def initialize(display_target : String, channel : ::AMQP::Client::Channel)

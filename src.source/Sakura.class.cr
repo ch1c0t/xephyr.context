@@ -1,37 +1,42 @@
 DISPLAY_COMMAND = "xephyr-run"
 CONTEXT_COMMAND = "./bin/xephyr.context"
-KILL_COMMAND = "xephyr-kill"
-WORD = "close"
+
+def initialize
+  @display_process : Process?
+  @context_process : Process?
+end
 
 def run : Nil
+  install_termination_handler
   display = start_display
-  context_process = start_context(display)
-  killed = false
+  @context_process = start_context(display)
 
   begin
     wait_for_word(display)
-
-    terminate(context_process)
-    kill_display(display)
-    killed = true
   ensure
-    terminate(context_process)
-    kill_display(display) unless killed
+    cleanup
+  end
+end
+
+private def install_termination_handler : Nil
+  Process.on_terminate do
+    cleanup
+    Process.exit
   end
 end
 
 private def start_display : String
-  process = Process.new(
-    DISPLAY_COMMAND,
-    ["sakura"],
+  @display_process = Process.new(
+    "setsid",
+    [DISPLAY_COMMAND, "sakura"],
     output: Process::Redirect::Pipe,
     error: Process::Redirect::Inherit
   )
 
-  display = process.output.gets.try(&.strip)
+  display = @display_process.output.gets.try(&.strip)
   raise "xephyr-run did not return a display" unless display
 
-  process.wait
+  @display_process.wait
   display
 end
 
@@ -46,25 +51,27 @@ end
 
 private def wait_for_word(display : String) : Nil
   context = XephyrContext.new(display, Global.amqp_channel)
-  context.wait_until WORD
+  context.wait_until "close"
+end
+
+private def cleanup : Nil
+  terminate(@context_process)
+  terminate_process_group(@display_process)
 end
 
 private def terminate(process : Process?) : Nil
   process.try do |current|
-    begin
-      current.terminate
-    rescue RuntimeError
-      # The context may have exited after recognizing the word.
-    end
+    current.terminate unless current.terminated?
+  rescue RuntimeError
   end
 end
 
-private def kill_display(display : String) : Nil
-  status = Process.run(
-    KILL_COMMAND,
-    [display],
-    error: Process::Redirect::Inherit
-  )
-
-  raise "xephyr-kill failed for #{display}: #{status}" unless status.success?
+private def terminate_process_group(process : Process?) : Nil
+  process.try do |current|
+    pid = current.pid
+    Process.signal(Signal::TERM, -pid)
+    sleep 100.milliseconds
+    Process.signal(Signal::KILL, -pid)
+  rescue RuntimeError
+  end
 end

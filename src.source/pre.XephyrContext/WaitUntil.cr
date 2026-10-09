@@ -4,6 +4,7 @@ end
 
 def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
   waiter = Channel(State).new(1)
+  replaced_states = 0
   # Never block the AMQP consumer while OCR is processing a frame.
   # Keep only the newest state waiting for the recognizer.
   callback = Proc(State, Nil).new do |state|
@@ -12,7 +13,7 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
     else
       select
       when waiter.receive
-        nil
+        replaced_states += 1
       else
         nil
       end
@@ -39,8 +40,12 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
   begin
     loop do
       state = receive_waiting_state(waiter, expected, timeout, started_at)
+      received_at = Time.instant
       text = recognizer.recognize(state)
-      puts " [wait_until] OCR: #{text.inspect}"
+      ocr_duration = Time.instant - received_at
+      now_ms = Time.utc.to_unix_ms
+      frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil
+      puts " [wait_until] frame=#{state.timestamp} OCR_ms=#{ocr_duration.total_milliseconds.round(1)} frame_lag_ms=#{frame_lag_ms || "unknown"} replaced=#{replaced_states} text=#{text.inspect}"
 
       if text.downcase.includes?(expected_text)
         puts " [wait_until] matched #{expected.inspect}"

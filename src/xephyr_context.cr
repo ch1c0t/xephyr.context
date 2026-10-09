@@ -168,6 +168,7 @@ class XephyrContext
     
       @consumer_tag = consumer_tag
       @stopped = false
+      previous_received_at : Time::Instant? = nil
       @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
         if @stopped
           begin
@@ -245,7 +246,7 @@ class XephyrContext
           else
             nil
           end
-
+    
           select
           when waiter.send(state)
             nil

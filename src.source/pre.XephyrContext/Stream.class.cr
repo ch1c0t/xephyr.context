@@ -21,6 +21,7 @@ def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON:
 
   @consumer_tag = consumer_tag
   @stopped = false
+  previous_received_at : Time::Instant? = nil
   @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: false, args: args) do |msg|
     if @stopped
       begin
@@ -31,10 +32,23 @@ def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON:
       next
     end
 
+    received_at = Time.instant
+    receive_interval_ms = previous_received_at.try { |previous| (received_at - previous).total_milliseconds.round(1) }
+    previous_received_at = received_at
+    parse_started_at = Time.instant
+
     begin
       payload = JSON.parse(msg.body_io)
+      parsed_at = Time.instant
+      payload_timestamp = payload["timestamp"]?.try(&.as_i64)
+      now_ms = Time.utc.to_unix_ms
+      producer_lag_ms = payload_timestamp.try { |timestamp| now_ms - timestamp if timestamp > now_ms - 86_400_000 && timestamp < now_ms + 60_000 }
 
+      callback_started_at = Time.instant
       block.call payload
+      callback_duration_ms = (Time.instant - callback_started_at).total_milliseconds.round(1)
+      parse_duration_ms = (parsed_at - parse_started_at).total_milliseconds.round(1)
+      puts " [Stream timing] name=#{@name.inspect} frame=#{payload_timestamp || "unknown"} producer_lag_ms=#{producer_lag_ms || "unknown"} receive_interval_ms=#{receive_interval_ms || "first"} parse_ms=#{parse_duration_ms} callback_ms=#{callback_duration_ms}"
     rescue ex : Exception
       puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
     ensure

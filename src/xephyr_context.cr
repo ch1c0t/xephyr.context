@@ -143,6 +143,31 @@ class XephyrContext
     def initialize(@windows, @raw_pixels, @timestamp, @width, @height)
     end
   end
+  
+  class ScreenRegion
+    getter x : Float64
+    getter y : Float64
+    getter width : Float64
+    getter height : Float64
+
+    def initialize(@x : Float64, @y : Float64, @width : Float64, @height : Float64)
+      raise "Region origin must be within 0.0..1.0" unless @x >= 0.0 && @x < 1.0 && @y >= 0.0 && @y < 1.0
+      raise "Region dimensions must be positive" unless @width > 0.0 && @height > 0.0
+      raise "Region must fit within the screen" unless @x + @width <= 1.0 && @y + @height <= 1.0
+    end
+
+    def self.full_screen : self
+      new(0.0, 0.0, 1.0, 1.0)
+    end
+
+    def self.top_fourth : self
+      new(0.0, 0.0, 1.0, 0.25)
+    end
+
+    def self.bottom_tenth : self
+      new(0.0, 0.9, 1.0, 0.1)
+    end
+  end
 
   class Stream
     getter name : String
@@ -227,11 +252,20 @@ class XephyrContext
   end
 
   module WaitUntil
-    def wait_until(expected : String, timeout : Time::Span? = nil) : State
-      wait_until(expected, timeout) {}
+    def wait_until(
+      expected : String,
+      timeout : Time::Span? = nil,
+      region : ScreenRegion = ScreenRegion.full_screen
+    ) : State
+      wait_until(expected, timeout, region) {}
     end
     
-    def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
+    def wait_until(
+      expected : String,
+      timeout : Time::Span? = nil,
+      region : ScreenRegion = ScreenRegion.full_screen,
+      &trigger
+    ) : State
       waiter = Channel(State).new(1)
       replaced_states = 0
       # Never block the AMQP consumer while OCR is processing a frame.
@@ -270,7 +304,7 @@ class XephyrContext
         loop do
           state = receive_waiting_state(waiter, expected, timeout, started_at)
           received_at = Time.instant
-          text = recognizer.recognize(state)
+          text = recognizer.recognize(state, region)
           ocr_duration = Time.instant - received_at
           now_ms = Time.utc.to_unix_ms
           frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil
@@ -401,8 +435,12 @@ class XephyrContext
       end
     end
     
-    def recognize(state : XephyrContext::State) : String
-      recognize(grayscale_pixels(state), state.width, state.height)
+    def recognize(
+      state : XephyrContext::State,
+      region : XephyrContext::ScreenRegion = XephyrContext::ScreenRegion.full_screen
+    ) : String
+      pixels, width, height = grayscale_pixels(state, region)
+      recognize(pixels, width, height)
     end
     
     def recognize(pixels : Slice(UInt8), width : Int32, height : Int32) : String
@@ -430,12 +468,21 @@ class XephyrContext
       LibTesseract.TessBaseAPIDelete(@api)
     end
     
-    private def grayscale_pixels(state : XephyrContext::State) : Slice(UInt8)
-      pixels = Slice(UInt8).new(state.width * state.height)
+    private def grayscale_pixels(
+      state : XephyrContext::State,
+      region : XephyrContext::ScreenRegion
+    ) : Tuple(Slice(UInt8), Int32, Int32)
+      x0 = (region.x * state.width).to_i.clamp(0, state.width - 1)
+      y0 = (region.y * state.height).to_i.clamp(0, state.height - 1)
+      x1 = ((region.x + region.width) * state.width).ceil.to_i.clamp(x0 + 1, state.width)
+      y1 = ((region.y + region.height) * state.height).ceil.to_i.clamp(y0 + 1, state.height)
+      width = x1 - x0
+      height = y1 - y0
+      pixels = Slice(UInt8).new(width * height)
       offset = 0
     
-      state.height.times do |y|
-        state.width.times do |x|
+      y0.upto(y1 - 1) do |y|
+        x0.upto(x1 - 1) do |x|
           pixel = (y * state.width + x) * 4
           b = state.raw_pixels[pixel]
           g = state.raw_pixels[pixel + 1]
@@ -445,7 +492,7 @@ class XephyrContext
         end
       end
     
-      pixels
+      {pixels, width, height}
     end
   end
 end

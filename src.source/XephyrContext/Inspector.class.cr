@@ -38,7 +38,7 @@ private def inspect_stream(
     subscribe.call(callback)
     count ? done.receive : sleep
   ensure
-    recognizer.try(&.finalize)
+    recognizer.try(&.close)
   end
 end
 

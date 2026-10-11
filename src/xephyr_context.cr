@@ -430,6 +430,7 @@ class XephyrContext
 
   class TextRecognizer
     def initialize(@language : String = "eng")
+      @closed = false
       @api = LibTesseract.TessBaseAPICreate
       raise "Tesseract failed to create API" if @api.null?
     
@@ -440,6 +441,7 @@ class XephyrContext
       )
     
       if status != 0
+        @closed = true
         LibTesseract.TessBaseAPIDelete(@api)
         raise "Tesseract failed to initialize for language #{@language} (exit code #{status})"
       end
@@ -474,6 +476,9 @@ class XephyrContext
     end
     
     def finalize
+      return if @closed
+    
+      @closed = true
       LibTesseract.TessBaseAPIEnd(@api)
       LibTesseract.TessBaseAPIDelete(@api)
     end

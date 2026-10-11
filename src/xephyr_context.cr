@@ -326,7 +326,7 @@ class XephyrContext
           end
         end
       ensure
-        recognizer.finalize
+        recognizer.close
       end
     ensure
       @mutation_callbacks.delete(callback) if callback
@@ -404,7 +404,7 @@ class XephyrContext
         subscribe.call(callback)
         count ? done.receive : sleep
       ensure
-        recognizer.try(&.finalize)
+        recognizer.try(&.close)
       end
     end
     

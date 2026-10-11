@@ -156,15 +156,15 @@ class XephyrContext
       raise "Region must fit within the screen" unless @x + @width <= 1.0 && @y + @height <= 1.0
     end
 
-    def self.full_screen : self
+    def self.full_screen : ScreenRegion
       new(0.0, 0.0, 1.0, 1.0)
     end
 
-    def self.top_fourth : self
+    def self.top_fourth : ScreenRegion
       new(0.0, 0.0, 1.0, 0.25)
     end
 
-    def self.bottom_tenth : self
+    def self.bottom_tenth : ScreenRegion
       new(0.0, 0.9, 1.0, 0.1)
     end
   end

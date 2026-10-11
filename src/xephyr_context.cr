@@ -475,12 +475,16 @@ class XephyrContext
       end
     end
     
-    def finalize
+    def close
       return if @closed
     
       @closed = true
       LibTesseract.TessBaseAPIEnd(@api)
       LibTesseract.TessBaseAPIDelete(@api)
+    end
+    
+    def finalize
+      close
     end
     
     private def grayscale_pixels(

@@ -1,4 +1,5 @@
 def initialize(@language : String = "eng")
+  @closed = false
   @api = LibTesseract.TessBaseAPICreate
   raise "Tesseract failed to create API" if @api.null?
 
@@ -9,6 +10,7 @@ def initialize(@language : String = "eng")
   )
 
   if status != 0
+    @closed = true
     LibTesseract.TessBaseAPIDelete(@api)
     raise "Tesseract failed to initialize for language #{@language} (exit code #{status})"
   end
@@ -43,6 +45,9 @@ def recognize(pixels : Slice(UInt8), width : Int32, height : Int32) : String
 end
 
 def finalize
+  return if @closed
+
+  @closed = true
   LibTesseract.TessBaseAPIEnd(@api)
   LibTesseract.TessBaseAPIDelete(@api)
 end

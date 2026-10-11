@@ -1,8 +1,17 @@
-def wait_until(expected : String, timeout : Time::Span? = nil) : State
-  wait_until(expected, timeout) {}
+def wait_until(
+  expected : String,
+  timeout : Time::Span? = nil,
+  region : ScreenRegion = ScreenRegion.full_screen
+) : State
+  wait_until(expected, timeout, region) {}
 end
 
-def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
+def wait_until(
+  expected : String,
+  timeout : Time::Span? = nil,
+  region : ScreenRegion = ScreenRegion.full_screen,
+  &trigger
+) : State
   waiter = Channel(State).new(1)
   replaced_states = 0
   # Never block the AMQP consumer while OCR is processing a frame.
@@ -41,7 +50,7 @@ def wait_until(expected : String, timeout : Time::Span? = nil, &trigger) : State
     loop do
       state = receive_waiting_state(waiter, expected, timeout, started_at)
       received_at = Time.instant
-      text = recognizer.recognize(state)
+      text = recognizer.recognize(state, region)
       ocr_duration = Time.instant - received_at
       now_ms = Time.utc.to_unix_ms
       frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil

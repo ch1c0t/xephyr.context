@@ -155,6 +155,16 @@ class XephyrContext
     def self.bottom_tenth : ScreenRegion
       new(0.0, 0.9, 1.0, 0.1)
     end
+
+    def self.from_symbol(symbol : Symbol) : ScreenRegion
+      case symbol
+      when :full_screen  then full_screen
+      when :top_fourth   then top_fourth
+      when :bottom_tenth then bottom_tenth
+      else
+        raise ArgumentError.new("Unknown screen region: #{symbol.inspect}")
+      end
+    end
   end
 
   class State

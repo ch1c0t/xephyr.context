@@ -62,7 +62,7 @@ def wait_until(
       end
     end
   ensure
-    recognizer.finalize
+    recognizer.close
   end
 ensure
   @mutation_callbacks.delete(callback) if callback

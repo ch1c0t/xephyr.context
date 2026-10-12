@@ -8,16 +8,16 @@ def initialize(@name : String, @channel : ::AMQP::Client::Channel)
     "x-queue-type" => "stream",
   })
 
-  puts " [Stream] declare name=#{@name.inspect}"
+  Log.debug { "[Stream] declare name=#{@name.inspect}" }
   @channel.queue_declare(name: @name, args: queue_args, durable: true)
   @channel.prefetch(100)
 end
 
 def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
-  puts " [Stream] consume name=#{@name.inspect} offset=#{offset.inspect}"
+  Log.debug { "[Stream] consume name=#{@name.inspect} offset=#{offset.inspect}" }
 
   args = consumer_arguments(offset)
-  puts " [Stream] basic_consume name=#{@name.inspect}"
+  Log.debug { "[Stream] basic_consume name=#{@name.inspect}" }
 
   @consumer_tag = consumer_tag
   @stopped = false
@@ -27,7 +27,7 @@ def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON:
       begin
         @channel.basic_ack(msg.delivery_tag)
       rescue ex : Exception
-        STDERR.puts " [Stream] ACK after stop failed: #{ex.class}: #{ex.message}"
+        Log.error(exception: ex) { "[Stream] ACK after stop failed: #{ex.class}: #{ex.message}" }
       end
       next
     end
@@ -48,19 +48,19 @@ def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON:
       block.call payload
       callback_duration_ms = (Time.instant - callback_started_at).total_milliseconds.round(1)
       parse_duration_ms = (parsed_at - parse_started_at).total_milliseconds.round(1)
-      puts " [Stream timing] name=#{@name.inspect} frame=#{payload_timestamp || "unknown"} producer_lag_ms=#{producer_lag_ms || "unknown"} receive_interval_ms=#{receive_interval_ms || "first"} parse_ms=#{parse_duration_ms} callback_ms=#{callback_duration_ms}"
+      Log.trace { "[Stream timing] name=#{@name.inspect} frame=#{payload_timestamp || "unknown"} producer_lag_ms=#{producer_lag_ms || "unknown"} receive_interval_ms=#{receive_interval_ms || "first"} parse_ms=#{parse_duration_ms} callback_ms=#{callback_duration_ms}" }
     rescue ex : Exception
-      puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
+      Log.error(exception: ex) { "[Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}" }
     ensure
       begin
         @channel.basic_ack(msg.delivery_tag)
       rescue ack_error : Exception
-        STDERR.puts " [Stream] ACK failed: #{ack_error.class}: #{ack_error.message}"
+        Log.error(exception: ack_error) { "[Stream] ACK failed: #{ack_error.class}: #{ack_error.message}" }
       end
     end
   end
 
-  puts " [Stream] basic_consume registered name=#{@name.inspect}"
+  Log.debug { "[Stream] basic_consume registered name=#{@name.inspect}" }
 end
 
 def stop : Nil

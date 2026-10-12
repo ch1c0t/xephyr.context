@@ -3,6 +3,6 @@ def replay_mutations(offset : String = "first", &block : State ->) : Nil
     state = build_state_snapshot(payload)
     block.call(state)
   rescue ex : Exception
-    puts " [XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}"
+    Log.error(exception: ex) { "[XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}" }
   end
 end

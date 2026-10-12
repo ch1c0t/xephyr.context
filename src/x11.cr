@@ -1,4 +1,5 @@
 require "./lib_x11"
+require "log"
 require "compress/deflate"
 
 module X11
@@ -40,14 +41,14 @@ module X11
     end
     
     def summarize
-      puts "\n--- Context Summary Payload ---"
-      puts "Total Windows Found: #{@windows.size}"
+      Log.debug { "Context summary payload" }
+      Log.debug { "Total windows found: #{@windows.size}" }
       @windows.each_with_index do |win, i|
-        puts "  [#{i}] ID: #{win.id} | Title: \"#{win.title}\""
+        Log.trace { "Window[#{i}] ID=#{win.id} title=#{win.title.inspect}" }
       end
     
       if img = @canvas
-        puts "Canvas Profile: #{img.width}x#{img.height} @ #{img.color_depth}-bit depth"
+        Log.debug { "Canvas profile: #{img.width}x#{img.height} @ #{img.color_depth}-bit depth" }
       end
     end
   end

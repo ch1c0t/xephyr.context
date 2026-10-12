@@ -2,6 +2,7 @@ require "amqp-client"
 require "compress/deflate"
 require "base64"
 require "json"
+require "log"
 require "./lib_tesseract"
 
 class XephyrContext
@@ -44,7 +45,7 @@ class XephyrContext
         state = build_state_snapshot(payload)
         @mutation_callbacks.each(&.call(state))
       rescue ex : Exception
-        puts " [XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}"
+        Log.error(exception: ex) { "[XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}" }
       end
     end
   end
@@ -88,27 +89,27 @@ class XephyrContext
     end
     
     def consume(consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
-      puts " [Queue] consume name=#{@name.inspect}"
+      Log.debug { "[Queue] consume name=#{@name.inspect}" }
     
       @consumer_tag = consumer_tag
       @stopped = false
       @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: true) do |msg|
         next if @stopped
     
-        puts " [Queue] message received name=#{@name.inspect}"
+        Log.trace { "[Queue] message received name=#{@name.inspect}" }
     
         begin
           payload = JSON.parse(msg.body_io)
-          puts " [Queue] payload parsed name=#{@name.inspect}"
+          Log.trace { "[Queue] payload parsed name=#{@name.inspect}" }
     
           block.call payload
-          puts " [Queue] callback completed name=#{@name.inspect}"
+          Log.trace { "[Queue] callback completed name=#{@name.inspect}" }
         rescue ex : Exception
-          puts " [Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
+          Log.error(exception: ex) { "[Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}" }
         end
       end
     
-      puts " [Queue] basic_consume registered name=#{@name.inspect}"
+      Log.debug { "[Queue] basic_consume registered name=#{@name.inspect}" }
     end
     
     def stop : Nil
@@ -127,7 +128,7 @@ class XephyrContext
         state = build_state_snapshot(payload)
         block.call(state)
       rescue ex : Exception
-        puts " [XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}"
+        Log.error(exception: ex) { "[XephyrContext Replay Error] Failed parsing canvas mutation: #{ex.message}" }
       end
     end
   end
@@ -190,16 +191,16 @@ class XephyrContext
         "x-queue-type" => "stream",
       })
     
-      puts " [Stream] declare name=#{@name.inspect}"
+      Log.debug { "[Stream] declare name=#{@name.inspect}" }
       @channel.queue_declare(name: @name, args: queue_args, durable: true)
       @channel.prefetch(100)
     end
     
     def consume(offset : String? = nil, consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
-      puts " [Stream] consume name=#{@name.inspect} offset=#{offset.inspect}"
+      Log.debug { "[Stream] consume name=#{@name.inspect} offset=#{offset.inspect}" }
     
       args = consumer_arguments(offset)
-      puts " [Stream] basic_consume name=#{@name.inspect}"
+      Log.debug { "[Stream] basic_consume name=#{@name.inspect}" }
     
       @consumer_tag = consumer_tag
       @stopped = false
@@ -209,7 +210,7 @@ class XephyrContext
           begin
             @channel.basic_ack(msg.delivery_tag)
           rescue ex : Exception
-            STDERR.puts " [Stream] ACK after stop failed: #{ex.class}: #{ex.message}"
+            Log.error(exception: ex) { "[Stream] ACK after stop failed: #{ex.class}: #{ex.message}" }
           end
           next
         end
@@ -230,19 +231,19 @@ class XephyrContext
           block.call payload
           callback_duration_ms = (Time.instant - callback_started_at).total_milliseconds.round(1)
           parse_duration_ms = (parsed_at - parse_started_at).total_milliseconds.round(1)
-          puts " [Stream timing] name=#{@name.inspect} frame=#{payload_timestamp || "unknown"} producer_lag_ms=#{producer_lag_ms || "unknown"} receive_interval_ms=#{receive_interval_ms || "first"} parse_ms=#{parse_duration_ms} callback_ms=#{callback_duration_ms}"
+          Log.trace { "[Stream timing] name=#{@name.inspect} frame=#{payload_timestamp || "unknown"} producer_lag_ms=#{producer_lag_ms || "unknown"} receive_interval_ms=#{receive_interval_ms || "first"} parse_ms=#{parse_duration_ms} callback_ms=#{callback_duration_ms}" }
         rescue ex : Exception
-          puts " [Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
+          Log.error(exception: ex) { "[Stream] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}" }
         ensure
           begin
             @channel.basic_ack(msg.delivery_tag)
           rescue ack_error : Exception
-            STDERR.puts " [Stream] ACK failed: #{ack_error.class}: #{ack_error.message}"
+            Log.error(exception: ack_error) { "[Stream] ACK failed: #{ack_error.class}: #{ack_error.message}" }
           end
         end
       end
     
-      puts " [Stream] basic_consume registered name=#{@name.inspect}"
+      Log.debug { "[Stream] basic_consume registered name=#{@name.inspect}" }
     end
     
     def stop : Nil
@@ -303,7 +304,7 @@ class XephyrContext
     
       @mutation_callbacks << callback
       start_mutation_consumers
-      puts " [wait_until] waiting for #{expected.inspect}"
+      Log.debug { "[wait_until] waiting for #{expected.inspect}" }
       yield
     
       recognizer = TextRecognizer.new
@@ -318,10 +319,10 @@ class XephyrContext
           ocr_duration = Time.instant - received_at
           now_ms = Time.utc.to_unix_ms
           frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil
-          puts " [wait_until] frame=#{state.timestamp} OCR_ms=#{ocr_duration.total_milliseconds.round(1)} frame_lag_ms=#{frame_lag_ms || "unknown"} replaced=#{replaced_states} text=#{text.inspect}"
+          Log.trace { "[wait_until] frame=#{state.timestamp} OCR_ms=#{ocr_duration.total_milliseconds.round(1)} frame_lag_ms=#{frame_lag_ms || "unknown"} replaced=#{replaced_states} text=#{text.inspect}" }
     
           if text.downcase.includes?(expected_text)
-            puts " [wait_until] matched #{expected.inspect}"
+            Log.debug { "[wait_until] matched #{expected.inspect}" }
             return state
           end
         end

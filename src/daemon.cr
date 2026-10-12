@@ -1,4 +1,5 @@
 require "json"
+require "log"
 require "./x11"
 
 class Daemon
@@ -6,6 +7,7 @@ class Daemon
   end
   
   def run
+    Log.info { "Starting display capture display=#{@display_target}" }
     display = X11::Display.new(@display_target)
   
     begin
@@ -19,10 +21,10 @@ class Daemon
         canvas = context.canvas
   
         if canvas.changed?
-          puts "[MUTATION] Pixels changed inside the sandbox!"
+          Log.debug { "[MUTATION] Pixels changed inside the sandbox!" }
           publisher.call context
         else
-          puts "No mutations"
+          Log.trace { "No mutations" }
         end
   
         canvas.destroy
@@ -103,9 +105,9 @@ class Daemon
       def call(context : X11::Context) : Nil
         # 1. Visual data pipeline execution pass
         canvas_json = serialize_canvas(context.canvas)
-        puts " [Publisher] canvas publish name=#{@canvas_queue.name.inspect} bytes=#{canvas_json.bytesize}"
+        Log.trace { "[Publisher] canvas publish name=#{@canvas_queue.name.inspect} bytes=#{canvas_json.bytesize}" }
         @canvas_queue.publish(canvas_json)
-        puts " [Publisher] canvas publish returned name=#{@canvas_queue.name.inspect}"
+        Log.trace { "[Publisher] canvas publish returned name=#{@canvas_queue.name.inspect}" }
       
         # 2. Dynamic telemetry initialization pass
         telemetry = Telemetry.new(context.windows, @spatial_queue.name)
@@ -113,10 +115,10 @@ class Daemon
         # 💡 PURE ENCAPSULATION: The queue manages its own socket delivery payload!
         if telemetry.changed?
           @spatial_queue.publish(telemetry.to_json)
-          puts " [MUTATION] Window hierarchy layout changed! Pushed spatial update."
+          Log.debug { "[MUTATION] Window hierarchy layout changed! Pushed spatial update." }
         end
       rescue ex : Exception
-        puts "  [Publisher Error] Failed to stream context payload: #{ex.class}: #{ex.message}"
+        Log.error(exception: ex) { "[Publisher Error] Failed to stream context payload: #{ex.class}: #{ex.message}" }
       end
     end
   

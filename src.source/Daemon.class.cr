@@ -2,6 +2,7 @@ def initialize(@display_target : String = Global.display)
 end
 
 def run
+  Log.info { "Starting display capture display=#{@display_target}" }
   display = X11::Display.new(@display_target)
 
   begin
@@ -15,15 +16,16 @@ def run
       canvas = context.canvas
 
       if canvas.changed?
-        puts "[MUTATION] Pixels changed inside the sandbox!"
+        Log.debug { "[MUTATION] Pixels changed inside the sandbox!" }
         publisher.call context
       else
-        puts "No mutations"
+        Log.trace { "No mutations" }
       end
 
       canvas.destroy
     end
   ensure
+    Log.info { "Closing display capture display=#{@display_target}" }
     display.close
   end
 end

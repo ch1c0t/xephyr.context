@@ -8,27 +8,27 @@ def initialize(@name : String, @channel : ::AMQP::Client::Channel)
 end
 
 def consume(consumer_tag : String? = nil, &block : JSON::Any ->) : Nil
-  puts " [Queue] consume name=#{@name.inspect}"
+  Log.debug { "[Queue] consume name=#{@name.inspect}" }
 
   @consumer_tag = consumer_tag
   @stopped = false
   @channel.basic_consume(@name, tag: consumer_tag || "", no_ack: true) do |msg|
     next if @stopped
 
-    puts " [Queue] message received name=#{@name.inspect}"
+    Log.trace { "[Queue] message received name=#{@name.inspect}" }
 
     begin
       payload = JSON.parse(msg.body_io)
-      puts " [Queue] payload parsed name=#{@name.inspect}"
+      Log.trace { "[Queue] payload parsed name=#{@name.inspect}" }
 
       block.call payload
-      puts " [Queue] callback completed name=#{@name.inspect}"
+      Log.trace { "[Queue] callback completed name=#{@name.inspect}" }
     rescue ex : Exception
-      puts " [Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}"
+      Log.error(exception: ex) { "[Queue] ERROR name=#{@name.inspect}: #{ex.class}: #{ex.message}" }
     end
   end
 
-  puts " [Queue] basic_consume registered name=#{@name.inspect}"
+  Log.debug { "[Queue] basic_consume registered name=#{@name.inspect}" }
 end
 
 def stop : Nil

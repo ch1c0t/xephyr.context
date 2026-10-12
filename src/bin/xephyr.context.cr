@@ -14,6 +14,9 @@ when 1
   end
 end
 
+require "log"
+Log.setup_from_env(default_level: Log::Severity::Info, log_level_env: "XEPHYR_LOG_LEVEL", backend: Log::IOBackend.new(STDERR))
+
 # Generic global pacing controller
 def each(interval : Time::Span, &block)
   loop do

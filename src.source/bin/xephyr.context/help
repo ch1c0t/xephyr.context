@@ -42,3 +42,9 @@ The replay offset may also be "next", "last", or a stream offset supported by
 LavinMQ.
 
 xephyr.log_changes and xephyr.save_screenshots_to use the live consumer.
+
+Logging:
+  XEPHYR_LOG_LEVEL=INFO|DEBUG|TRACE (default: INFO)
+
+Use DEBUG for lifecycle and queue diagnostics, or TRACE for per-frame OCR and
+stream timing details. Diagnostics are written to stderr.

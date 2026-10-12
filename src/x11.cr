@@ -1,6 +1,6 @@
 require "./lib_x11"
-require "log"
 require "compress/deflate"
+require "log"
 
 module X11
   # https://share.google/aimode/ve4pLYNnk1fbjQITm

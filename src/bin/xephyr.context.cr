@@ -14,6 +14,14 @@ when 1
   end
 end
 
+# Generic global pacing controller
+def each(interval : Time::Span, &block)
+  loop do
+    yield
+    sleep interval
+  end
+end
+
 require "log"
 
 log_level = case ENV.fetch("XEPHYR_LOG_LEVEL", "INFO").upcase
@@ -32,14 +40,6 @@ log_backend = Log::IOBackend.new(STDERR)
 Log.setup do |config|
   config.bind "*", log_level, log_backend
   config.bind "amqp.*", Log::Severity::Warn, log_backend
-end
-
-# Generic global pacing controller
-def each(interval : Time::Span, &block)
-  loop do
-    yield
-    sleep interval
-  end
 end
 
 require "../global"

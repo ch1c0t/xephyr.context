@@ -1,5 +1,5 @@
-require "json"
 require "log"
+require "json"
 require "./x11"
 
 class Daemon
@@ -30,6 +30,7 @@ class Daemon
         canvas.destroy
       end
     ensure
+      Log.info { "Closing display capture display=#{@display_target}" }
       display.close
     end
   end

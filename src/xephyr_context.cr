@@ -2,8 +2,8 @@ require "amqp-client"
 require "compress/deflate"
 require "base64"
 require "json"
-require "log"
 require "./lib_tesseract"
+require "log"
 
 class XephyrContext
   module EachMutation

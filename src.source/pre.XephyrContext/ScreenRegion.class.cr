@@ -20,12 +20,32 @@ end
 def self.bottom_tenth : ScreenRegion
   new(0.0, 0.9, 1.0, 0.1)
 end
+def self.first_quadrant : ScreenRegion
+  new(0.5, 0.0, 0.5, 0.5)
+end
+
+def self.second_quadrant : ScreenRegion
+  new(0.0, 0.0, 0.5, 0.5)
+end
+
+def self.third_quadrant : ScreenRegion
+  new(0.0, 0.5, 0.5, 0.5)
+end
+
+def self.fourth_quadrant : ScreenRegion
+  new(0.5, 0.5, 0.5, 0.5)
+end
+
 
 def self.from_symbol(symbol : Symbol) : ScreenRegion
   case symbol
   when :full_screen  then full_screen
   when :top_fourth   then top_fourth
   when :bottom_tenth then bottom_tenth
+  when :first_quadrant  then first_quadrant
+  when :second_quadrant then second_quadrant
+  when :third_quadrant  then third_quadrant
+  when :fourth_quadrant then fourth_quadrant
   else
     raise ArgumentError.new("Unknown screen region: #{symbol.inspect}")
   end

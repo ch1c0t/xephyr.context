@@ -159,19 +159,19 @@ class XephyrContext
     def self.first_quadrant : ScreenRegion
       new(0.5, 0.0, 0.5, 0.5)
     end
-
+    
     def self.second_quadrant : ScreenRegion
       new(0.0, 0.0, 0.5, 0.5)
     end
-
+    
     def self.third_quadrant : ScreenRegion
       new(0.0, 0.5, 0.5, 0.5)
     end
-
+    
     def self.fourth_quadrant : ScreenRegion
       new(0.5, 0.5, 0.5, 0.5)
     end
-
+    
     
     def self.from_symbol(symbol : Symbol) : ScreenRegion
       case symbol

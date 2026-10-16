@@ -178,10 +178,10 @@ class XephyrContext
       when :full_screen  then full_screen
       when :top_fourth   then top_fourth
       when :bottom_tenth then bottom_tenth
-        when :first_quadrant  then first_quadrant
-        when :second_quadrant then second_quadrant
-        when :third_quadrant  then third_quadrant
-        when :fourth_quadrant then fourth_quadrant
+      when :first_quadrant  then first_quadrant
+      when :second_quadrant then second_quadrant
+      when :third_quadrant  then third_quadrant
+      when :fourth_quadrant then fourth_quadrant
       else
         raise ArgumentError.new("Unknown screen region: #{symbol.inspect}")
       end

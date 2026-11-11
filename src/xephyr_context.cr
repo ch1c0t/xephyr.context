@@ -43,6 +43,7 @@ class XephyrContext
         next if @stopped
     
         state = build_state_snapshot(payload)
+        @latest_state = state
         @mutation_callbacks.each(&.call(state))
       rescue ex : Exception
         Log.error(exception: ex) { "[XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}" }
@@ -371,12 +372,17 @@ class XephyrContext
   @display_number : String
   @consumer_prefix : String
   @current_spatial_data = [] of JSON::Any
+  @latest_state : State? = nil
   
   def initialize(display_target : String, channel : ::AMQP::Client::Channel)
     @display_number = display_target.delete(':')
     @consumer_prefix = "xephyr-context-#{object_id}"
     @canvas_queue  = Stream.new "xephyr.#{@display_number}.canvas.stream", channel
     @spatial_queue = Queue.new "xephyr.#{@display_number}.telemetry.spatial", channel
+  end
+  
+  def latest_state : State?
+    @latest_state
   end
   
   include Private

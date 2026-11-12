@@ -88,6 +88,21 @@ class XephyrContextFixture
     receive_state_from(@received_states)
   end
 
+  def receive_state_until(
+    within : Time::Span = 5.seconds,
+    &predicate : XephyrContext::State -> Bool
+  ) : XephyrContext::State
+    deadline = Time.monotonic + within
+
+    loop do
+      remaining = deadline - Time.monotonic
+      raise "Timed out waiting for a matching canvas state from LavinMQ" if remaining <= 0.seconds
+
+      state = receive_state_from(@received_states, remaining)
+      return state if yield state
+    end
+  end
+
   def receive_state_from(
     channel : Channel(XephyrContext::State),
     within : Time::Span = 5.seconds

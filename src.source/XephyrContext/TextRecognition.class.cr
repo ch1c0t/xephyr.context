@@ -1,4 +1,3 @@
-class TextRecognition
   class Result
     getter state : State
     getter text : String
@@ -302,4 +301,3 @@ class TextRecognition
       first.width == second.width &&
       first.height == second.height
   end
-end

@@ -118,11 +118,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          Xvfb :99 -screen 0 640x480x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          # Keep the integration display outside the low-number range used by xephyrd.
+          Xvfb :1000 -screen 0 640x480x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
           echo "$!" > "$RUNNER_TEMP/xvfb.pid"
           for attempt in $(seq 1 30); do
-            if [[ -S /tmp/.X11-unix/X99 ]]; then
-              echo "DISPLAY=:99" >> "$GITHUB_ENV"
+            if [[ -S /tmp/.X11-unix/X1000 ]]; then
+              echo "DISPLAY=:1000" >> "$GITHUB_ENV"
+              echo "XEPHYR_CONTEXT_TEST_DISPLAY=:1000" >> "$GITHUB_ENV"
               exit 0
             fi
             sleep 1

@@ -76,10 +76,11 @@ describe "xephyr.context executable" do
         error: Process::Redirect::Close
       ).success?.should be_true
 
-      second = fixture.receive_state
+      second = fixture.receive_state_until do |state|
+        state.windows.any? { |item| item["title"].as_s == window_title }
+      end
       second.timestamp.should be >= first.timestamp
       second.raw_pixels.to_a.should_not eq(first.raw_pixels.to_a)
-      second.windows.any? { |item| item["title"].as_s == window_title }.should be_true
 
       window.signal(Signal::TERM)
       window.wait
@@ -108,7 +109,7 @@ describe "xephyr.context executable" do
         error: Process::Redirect::Close
       ).success?.should be_true
 
-      third = fixture.receive_state
+      third = fixture.receive_state_until { |state| state.windows.empty? }
       third.windows.should be_empty
 
       producer.signal(Signal::TERM)

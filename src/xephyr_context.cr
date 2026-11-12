@@ -626,7 +626,9 @@ class XephyrContext
   
       begin
         @context.each_mutation(&@mutation_callback)
-        enqueue(state) if state = @context.latest_state
+        if state = @context.latest_state
+      enqueue(state)
+    end
       rescue ex : Exception
         close
         raise ex
@@ -761,7 +763,9 @@ class XephyrContext
     ensure
       unless @closed
         @active_region = @full_screen
-        enqueue(state) if state = @context.latest_state
+        if state = @context.latest_state
+      enqueue(state)
+    end
       end
     end
   

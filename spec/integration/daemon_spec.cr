@@ -1,5 +1,5 @@
 require "spec"
-require "./library/fixtures/xephyr_context"
+require "../library/fixtures/xephyr_context"
 
 describe "xephyr.context executable" do
   it "publishes changed Xvfb frames and shuts down cleanly on SIGTERM" do

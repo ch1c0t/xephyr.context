@@ -104,6 +104,7 @@ describe "XephyrContext#latest_state" do
                             0xa0_u8, 0xb0_u8, 0xc0_u8, 0xff_u8]
 
       fixture.subscribe
+      fixture.context.latest_state.should be_nil
 
       fixture.publish_frame(1_000_i64, first_pixels)
       first_state = fixture.receive_state

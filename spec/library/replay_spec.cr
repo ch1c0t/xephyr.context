@@ -33,16 +33,16 @@ describe "XephyrContext#replay_mutations" do
     fixture = LatestStateFixture.new
 
     begin
+      first_pixels = Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8]
+      fixture.publish_frame(1_000_i64, first_pixels)
+
       replayed = Channel(XephyrContext::State).new(2)
       fixture.context.replay_mutations do |state|
         replayed.send(state)
       end
-
-      fixture.publish_frame(
-        1_000_i64,
-        Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8]
-      )
-      fixture.receive_state_from(replayed).timestamp.should eq(1_000_i64)
+      first = fixture.receive_state_from(replayed)
+      first.timestamp.should eq(1_000_i64)
+      first.raw_pixels.to_a.should eq(first_pixels.to_a)
 
       fixture.context.stop
       fixture.publish_frame(

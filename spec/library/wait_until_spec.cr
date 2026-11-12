@@ -17,6 +17,7 @@ describe "XephyrContext#wait_until" do
 
       error.message.should eq("Timed out waiting for \"READY\"")
       triggered.should be_true
+      fixture.context.@mutation_callbacks.should be_empty
       fixture.context.latest_state.should be_nil
     ensure
       fixture.close
@@ -58,6 +59,7 @@ describe "XephyrContext#wait_until" do
       end
 
       state.timestamp.should eq(timestamp)
+      fixture.context.@mutation_callbacks.should be_empty
     ensure
       fixture.close
     end

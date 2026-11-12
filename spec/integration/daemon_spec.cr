@@ -51,7 +51,22 @@ describe "xephyr.context executable" do
         error: Process::Redirect::Close
       )
       window_process = window
-      sleep 150.milliseconds
+      window_title = "xephyr-context-integration-window"
+      window_visible = false
+
+      30.times do
+        window_visible = Process.run(
+          "xwininfo",
+          ["-name", window_title],
+          env: {"DISPLAY" => display},
+          output: Process::Redirect::Close,
+          error: Process::Redirect::Close
+        ).success?
+        break if window_visible
+        sleep 50.milliseconds
+      end
+
+      window_visible.should be_true
 
       Process.run(
         "xsetroot",
@@ -64,12 +79,26 @@ describe "xephyr.context executable" do
       second = fixture.receive_state
       second.timestamp.should be >= first.timestamp
       second.raw_pixels.to_a.should_not eq(first.raw_pixels.to_a)
-      second.windows.any? { |item| item["title"].as_s == "xephyr-context-integration-window" }.should be_true
+      second.windows.any? { |item| item["title"].as_s == window_title }.should be_true
 
       window.signal(Signal::TERM)
       window.wait
       window_process = nil
-      sleep 150.milliseconds
+
+      window_gone = false
+      30.times do
+        window_gone = !Process.run(
+          "xwininfo",
+          ["-name", window_title],
+          env: {"DISPLAY" => display},
+          output: Process::Redirect::Close,
+          error: Process::Redirect::Close
+        ).success?
+        break if window_gone
+        sleep 50.milliseconds
+      end
+
+      window_gone.should be_true
 
       Process.run(
         "xsetroot",

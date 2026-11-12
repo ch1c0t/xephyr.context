@@ -28,7 +28,10 @@ jobs:
             gnupg \
             libtesseract-dev \
             libx11-dev \
-            tesseract-ocr-eng
+            tesseract-ocr-eng \
+            xvfb \
+            x11-utils \
+            x11-xserver-utils
 
       - name: Install LavinMQ package repository
         run: |
@@ -100,8 +103,28 @@ jobs:
       - name: Generate and build executables
         run: bundle exec rake
 
-      - name: Run Crystal specs
-        run: crystal spec
+      - name: Start Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          Xvfb :99 -screen 0 640x480x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/xvfb.pid"
+          for attempt in $(seq 1 30); do
+            if [[ -S /tmp/.X11-unix/X99 ]]; then
+              echo "DISPLAY=:99" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/xvfb.log"
+          echo "Timed out waiting for Xvfb" >&2
+          exit 1
+
+      - name: Run library specs
+        run: crystal spec spec/library
+
+      - name: Run Xvfb executable integration specs
+        run: crystal spec spec/integration
 
       - name: Run Ruby CLI specs
         run: bundle exec rspec
@@ -111,6 +134,14 @@ jobs:
         run: |
           if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
             tail -n 200 "$RUNNER_TEMP/lavinmq/lavinmq.log"
+          fi
+
+      - name: Stop Xvfb
+        if: always()
+        run: |
+          pid_file="$RUNNER_TEMP/xvfb.pid"
+          if [[ -f "$pid_file" ]]; then
+            kill "$(cat "$pid_file")" 2>/dev/null || true
           fi
 
       - name: Stop LavinMQ

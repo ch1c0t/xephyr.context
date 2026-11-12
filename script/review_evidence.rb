@@ -29,7 +29,12 @@ class ReviewEvidence
     {
       requirement: "The daemon exits cleanly on SIGTERM and releases X11 resources",
       verification: "spec/integration/daemon_spec.cr",
-      evidence: "test-results/*crystal-integration-specs.log"
+      evidence: "logs/xephyr.context-daemon.log, traces/daemon-lifecycle.jsonl"
+    },
+    {
+      requirement: "Window creation and destruction are reflected in spatial metadata",
+      verification: "spec/integration/daemon_spec.cr",
+      evidence: "logs/x11-window-snapshots.log, traces/daemon-lifecycle.jsonl"
     },
     {
       requirement: "Library state, replay, and wait_until contracts remain correct",
@@ -353,7 +358,8 @@ class ReviewEvidence
       "- `test-results/commands.json`: machine-readable command results.",
       "- `test-results/commands.jsonl`: append-only command result records.",
       "- `test-results/*.log`: complete combined standard output and standard error for each recorded command.",
-      "- `logs/`: captured Xvfb and LavinMQ logs, when those services started.",
+      "- `logs/`: captured Xvfb, LavinMQ, daemon stdout/stderr, X11 window snapshots, and process-table diagnostics.",
+      "- `traces/daemon-lifecycle.jsonl`: timestamped scenario events and every observed framebuffer/spatial state.",
       "- `inspection/`: the PNG and OCR output produced by the inspector integration spec.",
       "",
       "## Interpretation",

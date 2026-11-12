@@ -7,6 +7,7 @@ require "../../../src/xephyr_context"
 
 class XephyrContextFixture
   getter context : XephyrContext
+  getter display_target : String
 
   @connection : AMQP::Client::Connection
   @publisher_channel : AMQP::Client::Channel
@@ -14,7 +15,7 @@ class XephyrContextFixture
   @spatial_queue_name : String
   @received_states : Channel(XephyrContext::State)
 
-  def initialize
+  def initialize(display_target : String? = nil)
     socket_path = ENV["LAVINMQ_AMQP_UNIXSOCKET"]? ||
                   raise "LAVINMQ_AMQP_UNIXSOCKET must point to a running LavinMQ UNIX socket"
 
@@ -22,11 +23,12 @@ class XephyrContextFixture
     context_channel = @connection.channel
     @publisher_channel = @connection.channel
 
-    display_number = "spec-#{Process.pid}-#{Random::Secure.hex(8)}"
+    @display_target = display_target || "spec-#{Process.pid}-#{Random::Secure.hex(8)}"
+    display_number = @display_target.delete(':')
     @canvas_queue_name = "xephyr.#{display_number}.canvas.stream"
     @spatial_queue_name = "xephyr.#{display_number}.telemetry.spatial"
 
-    @context = XephyrContext.new(display_number, context_channel)
+    @context = XephyrContext.new(@display_target, context_channel)
     @received_states = Channel(XephyrContext::State).new(2)
   end
 
@@ -61,6 +63,22 @@ class XephyrContextFixture
     end
 
     @publisher_channel.basic_publish(payload, "", @canvas_queue_name)
+    nil
+  end
+
+  def publish_spatial(
+    windows : Array(JSON::Any),
+    timestamp : Int64 = Time.utc.to_unix
+  ) : Nil
+    payload = JSON.build do |json|
+      json.object do
+        json.field "routing_key", @spatial_queue_name
+        json.field "timestamp", timestamp
+        json.field "windows", windows
+      end
+    end
+
+    @publisher_channel.basic_publish(payload, "", @spatial_queue_name)
     nil
   end
 

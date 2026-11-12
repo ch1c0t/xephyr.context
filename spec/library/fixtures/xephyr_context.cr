@@ -55,7 +55,9 @@ class XephyrContextFixture
 
     payload = JSON.build do |json|
       json.object do
+        json.field "routing_key", @canvas_queue_name
         json.field "timestamp", timestamp
+        json.field "bytes_size", compressed.size
         json.field "data", Base64.strict_encode(compressed.to_slice)
         json.field "width", width
         json.field "height", height

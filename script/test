@@ -1,0 +1,187 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: script/test [crystal spec arguments...]
+
+Builds the executables, uses the existing user-managed LavinMQ socket from
+LAVINMQ_AMQP_UNIXSOCKET, starts Xvfb on an unused display at or above :1000,
+runs crystal spec, then stops only the Xvfb process started by this script.
+
+Environment:
+  SKIP_BUILD=1                         Reuse existing executables; skip bundle exec rake.
+  XEPHYR_CONTEXT_TEST_DISPLAY_START=1000
+                                      First display number to try (must be >= 1000).
+  LAVINMQ_AMQP_UNIXSOCKET              Existing user-managed LavinMQ UNIX socket.
+  KEEP_TEST_ARTIFACTS=1                Keep Xvfb logs and review evidence.
+  REVIEW_EVIDENCE_DIR=PATH             Write review evidence to PATH.
+
+Required commands:
+  bundle, crystal, shards, Xvfb, xdpyinfo, xsetroot, xmessage, xwininfo
+USAGE
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+cd "$repository_root"
+
+missing=()
+for command_name in bundle crystal shards Xvfb xdpyinfo xsetroot xmessage xwininfo; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    missing+=("$command_name")
+  fi
+done
+
+if (( ${#missing[@]} > 0 )); then
+  printf 'Missing required commands: %s\n' "${missing[*]}" >&2
+  printf 'Install Crystal/Shards, Ruby/Bundler, xvfb, x11-utils, and x11-xserver-utils.\n' >&2
+  exit 1
+fi
+
+if [[ -z "${LAVINMQ_AMQP_UNIXSOCKET:-}" ]]; then
+  printf 'LAVINMQ_AMQP_UNIXSOCKET is not set.\n' >&2
+  printf 'The local runner expects the user-managed socket (normally $HOME/.local/share/lavinmq/amqp.sock).\n' >&2
+  printf 'Load the environment configuration that exports this variable, then retry.\n' >&2
+  exit 1
+fi
+
+if [[ ! -S "$LAVINMQ_AMQP_UNIXSOCKET" ]]; then
+  printf 'LAVINMQ_AMQP_UNIXSOCKET does not point to an existing UNIX socket: %s\n' "$LAVINMQ_AMQP_UNIXSOCKET" >&2
+  printf 'Check the user-managed broker with: systemctl --user status lavinmq.socket lavinmq.service\n' >&2
+  exit 1
+fi
+
+
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  bundle exec rake
+fi
+
+run_dir="$(mktemp -d "${TMPDIR:-/tmp}/xephyr-context-test.XXXXXX")"
+chmod 700 "$run_dir"
+xvfb_pid=""
+
+stop_process() {
+  local pid="$1"
+  local state
+
+  [[ -n "$pid" ]] || return 0
+
+  if kill -0 "$pid" 2>/dev/null; then
+    kill -TERM "$pid" 2>/dev/null || true
+
+    for _ in {1..50}; do
+      state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
+      if [[ -z "$state" || "$state" == Z* ]]; then
+        break
+      fi
+      sleep 0.1
+    done
+
+    state="$(ps -o stat= -p "$pid" 2>/dev/null || true)"
+    if [[ -n "$state" && "$state" != Z* ]]; then
+      kill -KILL "$pid" 2>/dev/null || true
+    fi
+  fi
+
+  wait "$pid" 2>/dev/null || true
+}
+
+cleanup() {
+  local status=$?
+  trap - EXIT INT TERM
+
+  stop_process "$xvfb_pid"
+
+  if [[ "$status" -eq 0 && "${KEEP_TEST_ARTIFACTS:-0}" != "1" ]]; then
+    rm -rf "$run_dir"
+  else
+    printf '\nTest run files preserved at: %s\n' "$run_dir"
+    for log_file in "$run_dir"/xvfb-*.log; do
+      if [[ -f "$log_file" ]]; then
+        printf '\n--- %s ---\n' "$log_file"
+        tail -n 100 "$log_file" || true
+      fi
+    done
+  fi
+
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+export LAVINMQ_AMQP_UNIXSOCKET
+display_start="${XEPHYR_CONTEXT_TEST_DISPLAY_START:-1000}"
+if [[ ! "$display_start" =~ ^[0-9]+$ ]] || (( display_start < 1000 )); then
+  printf 'XEPHYR_CONTEXT_TEST_DISPLAY_START must be an integer >= 1000 (got %s).\n' "$display_start" >&2
+  exit 2
+fi
+
+display=""
+display_end=$((display_start + 99))
+printf 'Starting Xvfb (searching displays :%s through :%s)...\n' "$display_start" "$display_end"
+
+for ((number = display_start; number <= display_end; number++)); do
+  lock_path="/tmp/.X"$number"-lock"
+  socket_path="/tmp/.X11-unix/X"$number
+
+  # Do not touch an X server or lock file owned by another process.
+  if [[ -e "$lock_path" || -e "$socket_path" ]]; then
+    continue
+  fi
+
+  candidate_display=":$number"
+  candidate_log="$run_dir/xvfb-$number.log"
+  Xvfb "$candidate_display" -screen 0 640x480x24 -nolisten tcp >"$candidate_log" 2>&1 &
+  candidate_pid=$!
+  ready=0
+
+  for _ in {1..50}; do
+    if xdpyinfo -display "$candidate_display" >/dev/null 2>&1; then
+      ready=1
+      break
+    fi
+
+    if ! kill -0 "$candidate_pid" 2>/dev/null; then
+      wait "$candidate_pid" 2>/dev/null || true
+      candidate_pid=""
+      break
+    fi
+
+    sleep 0.1
+  done
+
+  if [[ "$ready" -eq 1 ]]; then
+    xvfb_pid="$candidate_pid"
+    display="$candidate_display"
+    break
+  fi
+
+  if [[ -n "$candidate_pid" ]]; then
+    stop_process "$candidate_pid"
+  fi
+done
+
+if [[ -z "$display" ]]; then
+  printf 'Could not start Xvfb on any display from :%s through :%s.\n' "$display_start" "$display_end" >&2
+  exit 1
+fi
+
+export DISPLAY="$display"
+export XEPHYR_CONTEXT_TEST_DISPLAY="$display"
+export REVIEW_EVIDENCE_DIR="${REVIEW_EVIDENCE_DIR:-$run_dir/review-evidence}"
+
+printf 'Using user-managed LavinMQ socket: %s\n' "$LAVINMQ_AMQP_UNIXSOCKET"
+printf 'Xvfb display:   %s\n' "$XEPHYR_CONTEXT_TEST_DISPLAY"
+printf '\nRunning crystal spec'
+if (( $# > 0 )); then
+  printf ' %q' "$@"
+fi
+printf '\n\n'
+
+crystal spec "$@"

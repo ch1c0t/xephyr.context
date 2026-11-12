@@ -8,15 +8,27 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      REVIEW_EVIDENCE_DIR: review-evidence
+      REVIEW_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Validate local test runner syntax
+        run: bash -n script/test
+
+      - name: Initialize review evidence
+        run: ruby script/review_evidence.rb init
 
       - name: Install native dependencies
         run: |
@@ -28,7 +40,10 @@ jobs:
             gnupg \
             libtesseract-dev \
             libx11-dev \
-            tesseract-ocr-eng
+            tesseract-ocr-eng \
+            xvfb \
+            x11-utils \
+            x11-xserver-utils
 
       - name: Install LavinMQ package repository
         run: |
@@ -95,22 +110,57 @@ jobs:
           crystal: 1.22.0
 
       - name: Install Crystal dependencies
-        run: shards install
+        run: ruby script/review_evidence.rb run crystal-dependencies shards install
+        continue-on-error: true
 
       - name: Generate and build executables
-        run: bundle exec rake
+        run: ruby script/review_evidence.rb run build bundle exec rake
+        continue-on-error: true
 
-      - name: Run Crystal specs
-        run: crystal spec
+      - name: Start Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the integration display outside the low-number range used by xephyrd.
+          Xvfb :1000 -screen 0 640x480x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/xvfb.pid"
+          for attempt in $(seq 1 30); do
+            if [[ -S /tmp/.X11-unix/X1000 ]]; then
+              echo "DISPLAY=:1000" >> "$GITHUB_ENV"
+              echo "XEPHYR_CONTEXT_TEST_DISPLAY=:1000" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/xvfb.log"
+          echo "Timed out waiting for Xvfb" >&2
+          exit 1
+
+      - name: Run library specs
+        run: ruby script/review_evidence.rb run crystal-library-specs crystal spec spec/library
+        continue-on-error: true
+
+      - name: Run Xvfb executable integration specs
+        run: ruby script/review_evidence.rb run crystal-integration-specs crystal spec spec/integration
+        continue-on-error: true
 
       - name: Run Ruby CLI specs
-        run: bundle exec rspec
+        run: ruby script/review_evidence.rb run ruby-cli-specs bundle exec rspec
+        continue-on-error: true
 
-      - name: Show LavinMQ log on failure
-        if: failure()
+      - name: Capture runtime process table
+        if: always()
         run: |
-          if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
-            tail -n 200 "$RUNNER_TEMP/lavinmq/lavinmq.log"
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          ps -eo pid,ppid,pgid,sid,stat,cmd \
+            > "$REVIEW_EVIDENCE_DIR/logs/processes-before-cleanup.txt" || true
+
+      - name: Stop Xvfb
+        if: always()
+        run: |
+          pid_file="$RUNNER_TEMP/xvfb.pid"
+          if [[ -f "$pid_file" ]]; then
+            kill "$(cat "$pid_file")" 2>/dev/null || true
           fi
 
       - name: Stop LavinMQ
@@ -120,3 +170,192 @@ jobs:
           if [[ -f "$pid_file" ]]; then
             kill "$(cat "$pid_file")" 2>/dev/null || true
           fi
+
+      - name: Collect service logs
+        if: always()
+        run: |
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
+            cp "$RUNNER_TEMP/lavinmq/lavinmq.log" "$REVIEW_EVIDENCE_DIR/logs/lavinmq.log"
+          fi
+          if [[ -f "$RUNNER_TEMP/xvfb.log" ]]; then
+            cp "$RUNNER_TEMP/xvfb.log" "$REVIEW_EVIDENCE_DIR/logs/xvfb.log"
+          fi
+
+      - name: Finalize review evidence
+        if: always()
+        run: ruby script/review_evidence.rb finalize
+
+      - name: Upload review evidence
+        id: upload-evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: review-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Publish review evidence comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        continue-on-error: true
+        env:
+          REVIEW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          ARTIFACT_URL: ${{ steps.upload-evidence.outputs.artifact-url }}
+          UPLOAD_OUTCOME: ${{ steps.upload-evidence.outcome || 'skipped' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const fs = require('fs')
+            const crypto = require('crypto')
+
+            const marker = '<!-- review-evidence -->'
+            const fingerprintMarker = '<!-- review-evidence-fingerprint:'
+            const owner = context.repo.owner
+            const repo = context.repo.repo
+            const issue_number = context.payload.pull_request.number
+
+            const readJson = (path) => {
+              try {
+                return JSON.parse(fs.readFileSync(path, 'utf8'))
+              } catch {
+                return null
+              }
+            }
+
+            const manifest = readJson('review-evidence/manifest.json')
+            const commandRecords = readJson('review-evidence/test-results/commands.json') || []
+            const expectedHead = process.env.REVIEW_PR_HEAD_SHA
+            const checkedHead = manifest?.commit?.pull_request_head_sha || expectedHead
+
+            // A slower run for an older commit must never replace newer evidence.
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: issue_number
+            })
+            if (checkedHead && pullRequest.head.sha !== checkedHead) {
+              core.info(`Skipping stale review evidence for ${checkedHead}; current PR head is ${pullRequest.head.sha}.`)
+              return
+            }
+
+            const checks = manifest?.checks || {}
+            const checkResult = checks.result || 'incomplete'
+            const artifactUrl = process.env.ARTIFACT_URL
+            const artifactUploaded = process.env.UPLOAD_OUTCOME === 'success' && Boolean(artifactUrl)
+
+            let overallStatus
+            if (!manifest) {
+              overallStatus = 'Evidence generation failed'
+            } else if (checkResult === 'failed') {
+              overallStatus = 'Checks failed'
+            } else if (checkResult !== 'passed') {
+              overallStatus = 'Evidence incomplete'
+            } else if (!artifactUploaded) {
+              overallStatus = 'Evidence artifact unavailable'
+            } else {
+              overallStatus = 'Passed'
+            }
+
+            const escapeCell = (value) => String(value ?? '—').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ')
+            const commitSha = checkedHead || manifest?.commit?.checked_out_sha || 'unavailable'
+            const commitLink = /^[0-9a-f]{40}$/i.test(commitSha)
+              ? `[${commitSha.slice(0, 12)}](${context.serverUrl}/${owner}/${repo}/commit/${commitSha})`
+              : escapeCell(commitSha)
+
+            const rows = commandRecords.map(record =>
+              `| ${escapeCell(record.name)} | ${escapeCell(record.status?.toUpperCase())} | ${escapeCell(record.duration_seconds)}s | ${escapeCell(record.exit_code)} |`
+            )
+            const failingChecks = commandRecords.filter(record => record.status !== 'passed')
+            const missingChecks = Array.isArray(checks.missing) ? checks.missing : []
+
+            const bodyParts = [
+              marker,
+              '',
+              '## Review evidence',
+              '',
+              `**Overall result:** ${overallStatus}`,
+              `**Tested commit:** ${commitLink}`,
+              `**Workflow run:** [View run](${process.env.RUN_URL})`,
+              artifactUploaded
+                ? `**Evidence bundle:** [Download review evidence](${artifactUrl}) (14-day retention)`
+                : '**Evidence bundle:** Not available; see the workflow run for diagnostics.',
+              '',
+              '### Checks',
+              '',
+              '| Check | Result | Duration | Exit code |',
+              '| --- | --- | ---: | ---: |',
+              ...(rows.length ? rows : ['| No command results recorded | — | — | — |'])
+            ]
+
+            if (failingChecks.length) {
+              bodyParts.push('', '### Failed checks', '')
+              for (const record of failingChecks) {
+                bodyParts.push(`- **${escapeCell(record.name)}** — exit code ${escapeCell(record.exit_code)}; see its command log in the evidence bundle or workflow run.`)
+              }
+            }
+
+            if (missingChecks.length) {
+              bodyParts.push('', '### Checks not completed', '')
+              for (const name of missingChecks) bodyParts.push(`- ${escapeCell(name)}`)
+            }
+
+            if (!manifest) {
+              bodyParts.push('', 'The evidence manifest was not generated. Inspect the workflow run for the failure that prevented evidence finalization.')
+            } else if (checkResult === 'passed' && !artifactUploaded) {
+              bodyParts.push('', 'All recorded checks passed, but the evidence artifact could not be uploaded. The workflow is not considered review-ready.')
+            }
+
+            bodyParts.push('', '_This comment is maintained automatically. Identical reruns do not create duplicate updates._')
+            const fingerprintPayload = {
+              commit: commitSha,
+              result: overallStatus,
+              checks: commandRecords.map(record => ({
+                name: record.name,
+                status: record.status,
+                exit_code: record.exit_code
+              })),
+              missing: missingChecks,
+              artifact_uploaded: artifactUploaded
+            }
+            const fingerprint = crypto
+              .createHash('sha256')
+              .update(JSON.stringify(fingerprintPayload))
+              .digest('hex')
+            bodyParts.splice(1, 0, `${fingerprintMarker}${fingerprint} -->`)
+            const body = bodyParts.join('\n')
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            })
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            )
+            const existingFingerprint = existing?.body?.match(/<!-- review-evidence-fingerprint:([0-9a-f]{64}) -->/)?.[1]
+
+            if (existing && existingFingerprint === fingerprint) {
+              core.info('Review evidence comment is already up to date; skipping.')
+              return
+            }
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body
+              })
+              core.info(`Updated review evidence comment ${existing.id}.`)
+            } else {
+              const { data: comment } = await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body
+              })
+              core.info(`Created review evidence comment ${comment.id}.`)
+            }

@@ -37,6 +37,38 @@ describe "XephyrContext#each_mutation and #stop" do
     end
   end
 
+  it "emits an updated state when spatial metadata changes after the last canvas frame" do
+    fixture = XephyrContextFixture.new
+
+    begin
+      callback = Channel(XephyrContext::State).new(2)
+      fixture.subscribe { |state| callback.send(state) }
+
+      pixels = Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8]
+      fixture.publish_frame(1_000_i64, pixels)
+      first_state = fixture.receive_state_from(callback)
+
+      first_state.windows.should be_empty
+      first_state.raw_pixels.to_a.should eq(pixels.to_a)
+
+      windows = [
+        JSON.parse(%({"id":42,"title":"terminal","spatial":{"x":12,"y":24,"width":320,"height":200,"visible":true}})),
+      ]
+      fixture.publish_spatial(windows, 2_000_i64)
+
+      updated_state = fixture.receive_state_from(callback)
+      updated_state.timestamp.should eq(first_state.timestamp)
+      updated_state.raw_pixels.to_a.should eq(first_state.raw_pixels.to_a)
+      updated_state.windows.should eq(windows)
+
+      latest_state = fixture.context.latest_state.not_nil!
+      latest_state.timestamp.should eq(first_state.timestamp)
+      latest_state.windows.should eq(windows)
+    ensure
+      fixture.close
+    end
+  end
+
   it "stops delivery and rejects new subscriptions after stop" do
     fixture = XephyrContextFixture.new
 

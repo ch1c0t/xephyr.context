@@ -50,4 +50,37 @@ describe "XephyrContext#latest_state" do
       fixture.close
     end
   end
+
+  it "includes the latest spatial metadata in the cached framebuffer state" do
+    fixture = XephyrContextFixture.new
+
+    begin
+      windows = [
+        JSON.parse(%({"id":42,"title":"terminal","spatial":{"x":12,"y":24,"width":320,"height":200,"visible":true}})),
+      ]
+
+      fixture.subscribe
+      fixture.publish_spatial(windows)
+
+      state = nil.as(XephyrContext::State?)
+      20.times do |index|
+        fixture.publish_frame(3_000_i64 + index, Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8])
+        candidate = fixture.receive_state
+
+        if candidate.windows == windows
+          state = candidate
+          break
+        end
+
+        sleep 25.milliseconds
+      end
+
+      state.should_not be_nil
+      latest_state = fixture.context.latest_state.not_nil!
+      latest_state.windows.should eq(windows)
+      latest_state.timestamp.should eq(state.not_nil!.timestamp)
+    ensure
+      fixture.close
+    end
+  end
 end

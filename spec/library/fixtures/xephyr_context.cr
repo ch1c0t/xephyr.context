@@ -7,6 +7,7 @@ require "../../../src/xephyr_context"
 
 class XephyrContextFixture
   getter context : XephyrContext
+  getter display_target : String
 
   @connection : AMQP::Client::Connection
   @publisher_channel : AMQP::Client::Channel
@@ -14,7 +15,7 @@ class XephyrContextFixture
   @spatial_queue_name : String
   @received_states : Channel(XephyrContext::State)
 
-  def initialize
+  def initialize(display_target : String? = nil)
     socket_path = ENV["LAVINMQ_AMQP_UNIXSOCKET"]? ||
                   raise "LAVINMQ_AMQP_UNIXSOCKET must point to a running LavinMQ UNIX socket"
 
@@ -22,11 +23,12 @@ class XephyrContextFixture
     context_channel = @connection.channel
     @publisher_channel = @connection.channel
 
-    display_number = "spec-#{Process.pid}-#{Random::Secure.hex(8)}"
+    @display_target = display_target || "spec-#{Process.pid}-#{Random::Secure.hex(8)}"
+    display_number = @display_target.delete(':')
     @canvas_queue_name = "xephyr.#{display_number}.canvas.stream"
     @spatial_queue_name = "xephyr.#{display_number}.telemetry.spatial"
 
-    @context = XephyrContext.new(display_number, context_channel)
+    @context = XephyrContext.new(@display_target, context_channel)
     @received_states = Channel(XephyrContext::State).new(2)
   end
 
@@ -53,7 +55,9 @@ class XephyrContextFixture
 
     payload = JSON.build do |json|
       json.object do
+        json.field "routing_key", @canvas_queue_name
         json.field "timestamp", timestamp
+        json.field "bytes_size", compressed.size
         json.field "data", Base64.strict_encode(compressed.to_slice)
         json.field "width", width
         json.field "height", height
@@ -64,8 +68,83 @@ class XephyrContextFixture
     nil
   end
 
+  def publish_spatial(
+    windows : Array(JSON::Any),
+    timestamp : Int64 = Time.utc.to_unix
+  ) : Nil
+    payload = JSON.build do |json|
+      json.object do
+        json.field "routing_key", @spatial_queue_name
+        json.field "timestamp", timestamp
+        json.field "windows", windows
+      end
+    end
+
+    @publisher_channel.basic_publish(payload, "", @spatial_queue_name)
+    nil
+  end
+
   def receive_state : XephyrContext::State
     receive_state_from(@received_states)
+  end
+
+  def receive_state_until(
+    expectation : String = "a matching canvas state",
+    within : Time::Span = 5.seconds,
+    &predicate : XephyrContext::State -> Bool
+  ) : XephyrContext::State
+    deadline = Time.instant + within
+    observed_states = 0
+    last_state : XephyrContext::State? = nil
+
+    loop do
+      remaining = deadline - Time.instant
+      if remaining <= 0.seconds
+        raise state_timeout_message(expectation, within, observed_states, last_state)
+      end
+
+      state = receive_state_from_or_nil(@received_states, remaining)
+      unless state
+        raise state_timeout_message(expectation, within, observed_states, last_state)
+      end
+
+      observed_states += 1
+      last_state = state
+      return state if predicate.call(state)
+    end
+  end
+
+  private def state_timeout_message(
+    expectation : String,
+    within : Time::Span,
+    observed_states : Int32,
+    last_state : XephyrContext::State?
+  ) : String
+    message = String.build do |io|
+      io << "Timed out after " << within << " waiting for " << expectation
+      io << ". Observed " << observed_states << " canvas state(s)."
+
+      if state = last_state
+        io << "\nLast state:"
+        io << "\n  timestamp: " << state.timestamp
+        io << "\n  dimensions: " << state.width << "x" << state.height
+        io << "\n  raw pixel bytes: " << state.raw_pixels.size
+        io << "\n  windows:"
+
+        if state.windows.empty?
+          io << "\n    (none)"
+        else
+          state.windows.each do |window|
+            io << "\n    - id=" << (window["id"]?.try(&.to_s) || "unknown")
+            io << " title=" << (window["title"]?.try(&.as_s) || "(untitled)").inspect
+          end
+        end
+      else
+        io << "\nNo canvas states were received during the wait."
+      end
+    end
+
+    message
   end
 
   def receive_state_from(

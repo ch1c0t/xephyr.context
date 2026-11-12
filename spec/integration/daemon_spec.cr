@@ -65,14 +65,14 @@ private def record_x11_probe(
 ) : Nil
   details = String.build do |io|
     io << "success=" << snapshot[:success]
-    io << "\\nstdout:\\n" << snapshot[:stdout]
-    io << "\\nstderr:\\n" << snapshot[:stderr]
+    io << "\nstdout:\n" << snapshot[:stdout]
+    io << "\nstderr:\n" << snapshot[:stderr]
   end
 
-  trace.record("x11_window_probe", "#{phase}\\n#{details}")
+  trace.record("x11_window_probe", "#{phase}\n#{details}")
   File.open(snapshots_path, "a") do |file|
-    file << "\\n=== " << phase << " ===\\n"
-    file << details << "\\n"
+    file << "\n=== " << phase << " ===\n"
+    file << details << "\n"
   end
 end
 
@@ -186,7 +186,7 @@ describe "xephyr.context executable" do
       window.signal(Signal::TERM)
       window_status = window.wait
       window_process = nil
-      trace.record("window_process_terminated", "success=#{window_status.success?}; exit_code=#{window_status.exit_code}")
+      trace.record("window_process_terminated", "success=#{window_status.success?}; exit_code=#{window_status.exit_code?}")
 
       window_snapshot = x11_window_snapshot(display, window_title)
       window_gone = !window_snapshot[:success]
@@ -221,7 +221,7 @@ describe "xephyr.context executable" do
       producer.signal(Signal::TERM)
       trace.record("producer_sigterm_sent", "pid=#{producer.pid}")
       producer_status = producer.wait
-      trace.record("producer_exited", "success=#{producer_status.success?}; exit_code=#{producer_status.exit_code}")
+      trace.record("producer_exited", "success=#{producer_status.success?}; exit_code=#{producer_status.exit_code?}")
       producer_status.success?.should be_true
       process = nil
     rescue ex : Exception
@@ -233,7 +233,7 @@ describe "xephyr.context executable" do
           trace.record("cleanup_window_process", "pid=#{running.pid}")
           running.signal(Signal::TERM)
           window_status = running.wait
-          trace.record("cleanup_window_process_exited", "success=#{window_status.success?}; exit_code=#{window_status.exit_code}")
+          trace.record("cleanup_window_process_exited", "success=#{window_status.success?}; exit_code=#{window_status.exit_code?}")
         rescue ex : Exception
           trace.record("cleanup_window_process_error", "#{ex.class}: #{ex.message}")
         end
@@ -244,7 +244,7 @@ describe "xephyr.context executable" do
           trace.record("cleanup_producer_process", "pid=#{running.pid}")
           running.signal(Signal::TERM)
           producer_status = running.wait
-          trace.record("cleanup_producer_process_exited", "success=#{producer_status.success?}; exit_code=#{producer_status.exit_code}")
+          trace.record("cleanup_producer_process_exited", "success=#{producer_status.success?}; exit_code=#{producer_status.exit_code?}")
         rescue ex : Exception
           trace.record("cleanup_producer_process_error", "#{ex.class}: #{ex.message}")
         end

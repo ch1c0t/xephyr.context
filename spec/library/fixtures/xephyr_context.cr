@@ -125,22 +125,22 @@ class XephyrContextFixture
       io << ". Observed " << observed_states << " canvas state(s)."
 
       if state = last_state
-        io << "\\nLast state:"
-        io << "\\n  timestamp: " << state.timestamp
-        io << "\\n  dimensions: " << state.width << "x" << state.height
-        io << "\\n  raw pixel bytes: " << state.raw_pixels.size
-        io << "\\n  windows:"
+        io << "\nLast state:"
+        io << "\n  timestamp: " << state.timestamp
+        io << "\n  dimensions: " << state.width << "x" << state.height
+        io << "\n  raw pixel bytes: " << state.raw_pixels.size
+        io << "\n  windows:"
 
         if state.windows.empty?
-          io << "\\n    (none)"
+          io << "\n    (none)"
         else
           state.windows.each do |window|
-            io << "\\n    - id=" << (window["id"]?.try(&.to_json) || "unknown")
+            io << "\n    - id=" << (window["id"]?.try(&.to_json) || "unknown")
             io << " title=" << (window["title"]?.try(&.as_s) || "(untitled)").inspect
           end
         end
       else
-        io << "\\nNo canvas states were received during the wait."
+        io << "\nNo canvas states were received during the wait."
       end
     end
 

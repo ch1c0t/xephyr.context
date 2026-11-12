@@ -42,7 +42,7 @@ def wait_until(
   Log.debug { "[wait_until] waiting for #{expected.inspect}" }
   yield
 
-  recognizer = TextRecognizer.new
+  recognizer : TextRecognizer? = nil
   started_at = Time.instant
   expected_text = expected.downcase
 
@@ -50,7 +50,8 @@ def wait_until(
     loop do
       state = receive_waiting_state(waiter, expected, timeout, started_at)
       received_at = Time.instant
-      text = recognizer.recognize(state, region)
+      recognizer = TextRecognizer.new unless recognizer
+      text = recognizer.not_nil!.recognize(state, region)
       ocr_duration = Time.instant - received_at
       now_ms = Time.utc.to_unix_ms
       frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil
@@ -62,7 +63,7 @@ def wait_until(
       end
     end
   ensure
-    recognizer.close
+    recognizer.try(&.close)
   end
 ensure
   @mutation_callbacks.delete(callback) if callback

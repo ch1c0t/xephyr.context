@@ -5,24 +5,32 @@ def run
   Log.info { "Starting display capture display=#{@display_target}" }
   display = X11::Display.new(@display_target)
 
+  running = true
+  Signal::INT.trap { running = false }
+  Signal::TERM.trap { running = false }
+
   begin
     absorber = Absorber.new(display)
     absorber.summarize
 
     publisher = Publisher.new
 
-    each Global.interval do
+    while running
       context = absorber.absorb
       canvas = context.canvas
 
-      if canvas.changed?
-        Log.debug { "[MUTATION] Pixels changed inside the sandbox!" }
-        publisher.call context
-      else
-        Log.trace { "No mutations" }
+      begin
+        if canvas.changed?
+          Log.debug { "[MUTATION] Pixels changed inside the sandbox!" }
+          publisher.call context
+        else
+          Log.trace { "No mutations" }
+        end
+      ensure
+        canvas.destroy
       end
 
-      canvas.destroy
+      sleep Global.interval
     end
   ensure
     Log.info { "Closing display capture display=#{@display_target}" }

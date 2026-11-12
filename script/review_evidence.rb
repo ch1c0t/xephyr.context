@@ -8,6 +8,13 @@ require "time"
 
 class ReviewEvidence
   SCHEMA_VERSION = 1
+  EXPECTED_CHECKS = %w[
+    crystal-dependencies
+    build
+    crystal-library-specs
+    crystal-integration-specs
+    ruby-cli-specs
+  ].freeze
   REQUIREMENT_MATRIX = [
     {
       requirement: "Framebuffer publication reflects real X11 changes and suppresses unchanged frames",
@@ -153,17 +160,30 @@ class ReviewEvidence
     manifest = read_json("manifest.json")
     manifest["finalized_at_utc"] = Time.now.utc.iso8601(6)
     manifest["environment"] = environment_details
+    recorded_names = records.map { |record| record.fetch("name") }.uniq
+    missing_checks = EXPECTED_CHECKS - recorded_names
+    failed_count = records.count { |record| record.fetch("status") == "failed" }
+    result = if missing_checks.any?
+      "incomplete"
+    elsif failed_count.positive?
+      "failed"
+    else
+      "passed"
+    end
+
     manifest["checks"] = {
       "total" => records.length,
       "passed" => records.count { |record| record.fetch("status") == "passed" },
-      "failed" => records.count { |record| record.fetch("status") == "failed" }
+      "failed" => failed_count,
+      "missing" => missing_checks,
+      "result" => result
     }
     write_json("manifest.json", manifest)
     write_summary(records, manifest)
 
     puts "Wrote #{relative_path(File.join(@evidence_dir, 'manifest.json'))}"
     puts "Wrote #{relative_path(File.join(@evidence_dir, 'review-summary.md'))}"
-    records.any? { |record| record.fetch("status") != "passed" } ? 1 : 0
+    result == "passed" ? 0 : 1
   end
 
   def build_manifest
@@ -284,6 +304,16 @@ class ReviewEvidence
       table_row("Event", manifest.dig("workflow", "event")),
       table_row("Workflow run", manifest.dig("workflow", "run_url")),
       table_row("Platform", [manifest.dig("environment", "distribution"), manifest.dig("environment", "kernel")].compact.join(" / ")),
+      table_row("Overall result", manifest.dig("checks", "result")&.upcase),
+      "",
+      "## Toolchain",
+      "",
+      "| Tool | Version |",
+      "| --- | --- |",
+      table_row("Crystal", manifest.dig("environment", "toolchain", "crystal")),
+      table_row("Shards", manifest.dig("environment", "toolchain", "shards")),
+      table_row("Ruby", manifest.dig("environment", "toolchain", "ruby")),
+      table_row("Bundler", manifest.dig("environment", "toolchain", "bundler")),
       "",
       "## Checks",
       "",
@@ -297,6 +327,10 @@ class ReviewEvidence
       records.each do |record|
         lines << "| #{escape_table(record['name'])} | #{record['status'].upcase} | #{record['exit_code']} | #{record['duration_seconds']}s | `#{record['log']}` | `#{escape_table(record['command'].join(' '))}` |"
       end
+    end
+
+    (manifest.dig("checks", "missing") || []).each do |name|
+      lines << "| #{escape_table(name)} | NOT RUN | — | — | — | — |"
     end
 
     lines.concat([
@@ -324,7 +358,7 @@ class ReviewEvidence
       "",
       "## Interpretation",
       "",
-      "A check is marked passed only when its command exited with status 0. A green workflow is still required; this report does not replace CI status checks.",
+      "A check is marked passed only when its command exited with status 0. Missing expected checks make the report incomplete. A green workflow is still required; this report does not replace CI status checks.",
       ""
     ])
 

@@ -57,6 +57,32 @@ private def x11_window_snapshot(display : String, title : String)
   }
 end
 
+private def set_root_background(display : String, color : String, phase : String) : Process::Status
+  stdout = IO::Memory.new
+  stderr = IO::Memory.new
+
+  status = Process.run(
+    "xsetroot",
+    ["-solid", color],
+    env: {"DISPLAY" => display},
+    output: stdout,
+    error: stderr
+  )
+
+  return status if status.success?
+
+  message = String.build do |io|
+    io << "Failed to set X11 root background during " << phase
+    io << "\n  display: " << display
+    io << "\n  command: xsetroot -solid " << color.inspect
+    io << "\n  exit code: " << (status.exit_code?.try(&.to_s) || "terminated by signal")
+    io << "\n  stdout:\n" << stdout.to_s
+    io << "\n  stderr:\n" << stderr.to_s
+  end
+
+  raise message
+end
+
 private def record_x11_probe(
   trace : DaemonLifecycleTrace,
   snapshots_path : String,
@@ -104,15 +130,8 @@ describe "xephyr.context executable" do
       fixture.subscribe
       trace.record("state_subscription_started")
 
-      initial_background = Process.run(
-        "xsetroot",
-        ["-solid", "#123456"],
-        env: {"DISPLAY" => display},
-        output: Process::Redirect::Close,
-        error: Process::Redirect::Close
-      )
+      initial_background = set_root_background(display, "#123456", "initial setup")
       trace.record("initial_background_set", "success=#{initial_background.success?}")
-      initial_background.success?.should be_true
 
       daemon_log = File.open(daemon_log_path, "w")
       producer = Process.new(
@@ -166,15 +185,8 @@ describe "xephyr.context executable" do
       record_x11_probe(trace, x11_snapshots_path, "window creation final check", window_snapshot)
       window_visible.should be_true
 
-      changed_background = Process.run(
-        "xsetroot",
-        ["-solid", "#654321"],
-        env: {"DISPLAY" => display},
-        output: Process::Redirect::Close,
-        error: Process::Redirect::Close
-      )
+      changed_background = set_root_background(display, "#654321", "while the window is open")
       trace.record("background_changed_with_window_open", "success=#{changed_background.success?}")
-      changed_background.success?.should be_true
 
       second = fixture.receive_state_until("window title appears in spatial metadata") do |state|
         state.windows.any? { |item| item["title"].as_s == window_title }
@@ -202,15 +214,8 @@ describe "xephyr.context executable" do
       record_x11_probe(trace, x11_snapshots_path, "window destruction final check", window_snapshot)
       window_gone.should be_true
 
-      restored_background = Process.run(
-        "xsetroot",
-        ["-solid", "#123456"],
-        env: {"DISPLAY" => display},
-        output: Process::Redirect::Close,
-        error: Process::Redirect::Close
-      )
+      restored_background = set_root_background(display, "#123456", "after the window closes")
       trace.record("background_changed_after_window_close", "success=#{restored_background.success?}")
-      restored_background.success?.should be_true
 
       third = fixture.receive_state_until("window title absent from spatial metadata") do |state|
         state.windows.none? { |item| item["title"]?.try(&.as_s) == window_title }

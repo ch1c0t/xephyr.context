@@ -31,12 +31,21 @@ class LatestStateFixture
   end
 
   def subscribe : Nil
-    @context.each_mutation do |state|
+    subscribe do |state|
       @received_states.send(state)
     end
   end
 
-  def publish_frame(timestamp : Int64, pixels : Bytes) : Nil
+  def subscribe(&block : XephyrContext::State ->) : Nil
+    @context.each_mutation(&block)
+  end
+
+  def publish_frame(
+    timestamp : Int64,
+    pixels : Bytes,
+    width : Int32 = 2,
+    height : Int32 = 1
+  ) : Nil
     compressed = IO::Memory.new
     Compress::Deflate::Writer.open(compressed) do |writer|
       writer.write(pixels)
@@ -46,8 +55,8 @@ class LatestStateFixture
       json.object do
         json.field "timestamp", timestamp
         json.field "data", Base64.strict_encode(compressed.to_slice)
-        json.field "width", 2
-        json.field "height", 1
+        json.field "width", width
+        json.field "height", height
       end
     end
 
@@ -56,12 +65,35 @@ class LatestStateFixture
   end
 
   def receive_state : XephyrContext::State
+    receive_state_from(@received_states)
+  end
+
+  def receive_state_from(
+    channel : Channel(XephyrContext::State),
+    within : Time::Span = 5.seconds
+  ) : XephyrContext::State
     select
-    when state = @received_states.receive
+    when state = channel.receive
       state
-    when timeout(5.seconds)
+    when timeout(within)
       raise "Timed out waiting for a canvas state from LavinMQ"
     end
+  end
+
+  def receive_state_from_or_nil(
+    channel : Channel(XephyrContext::State),
+    within : Time::Span
+  ) : XephyrContext::State?
+    select
+    when state = channel.receive
+      state
+    when timeout(within)
+      nil
+    end
+  end
+
+  def receive_state_or_nil(within : Time::Span) : XephyrContext::State?
+    receive_state_from_or_nil(@received_states, within)
   end
 
   def close : Nil

@@ -125,7 +125,7 @@ class XephyrContext
 
   module Replay
     def replay_mutations(offset : String = "first", &block : State ->) : Nil
-      @canvas_queue.consume(offset) do |payload|
+      @canvas_queue.consume(offset, "#{@consumer_prefix}-replay") do |payload|
         state = build_state_snapshot(payload)
         block.call(state)
       rescue ex : Exception
@@ -328,7 +328,7 @@ class XephyrContext
       Log.debug { "[wait_until] waiting for #{expected.inspect}" }
       yield
     
-      recognizer = TextRecognizer.new
+      recognizer : TextRecognizer? = nil
       started_at = Time.instant
       expected_text = expected.downcase
     
@@ -336,7 +336,8 @@ class XephyrContext
         loop do
           state = receive_waiting_state(waiter, expected, timeout, started_at)
           received_at = Time.instant
-          text = recognizer.recognize(state, region)
+          recognizer = TextRecognizer.new unless recognizer
+          text = recognizer.not_nil!.recognize(state, region)
           ocr_duration = Time.instant - received_at
           now_ms = Time.utc.to_unix_ms
           frame_lag_ms = state.timestamp > now_ms - 86_400_000 && state.timestamp < now_ms + 60_000 ? now_ms - state.timestamp : nil
@@ -348,7 +349,7 @@ class XephyrContext
           end
         end
       ensure
-        recognizer.close
+        recognizer.try(&.close)
       end
     ensure
       @mutation_callbacks.delete(callback) if callback

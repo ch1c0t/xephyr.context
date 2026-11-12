@@ -27,7 +27,8 @@ jobs:
             curl \
             gnupg \
             libtesseract-dev \
-            libx11-dev
+            libx11-dev \
+            tesseract-ocr-eng
 
       - name: Install LavinMQ package repository
         run: |

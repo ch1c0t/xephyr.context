@@ -1,5 +1,5 @@
 def replay_mutations(offset : String = "first", &block : State ->) : Nil
-  @canvas_queue.consume(offset) do |payload|
+  @canvas_queue.consume(offset, "#{@consumer_prefix}-replay") do |payload|
     state = build_state_snapshot(payload)
     block.call(state)
   rescue ex : Exception

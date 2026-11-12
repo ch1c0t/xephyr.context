@@ -5,19 +5,20 @@ usage() {
   cat <<'USAGE'
 Usage: script/test [crystal spec arguments...]
 
-Builds the executables, starts an isolated LavinMQ instance and an Xvfb server
-on an unused display at or above :1000, runs crystal spec, then stops only
-the service processes started by this script.
+Builds the executables, uses the existing user-managed LavinMQ socket from
+LAVINMQ_AMQP_UNIXSOCKET, starts Xvfb on an unused display at or above :1000,
+runs crystal spec, then stops only the Xvfb process started by this script.
 
 Environment:
   SKIP_BUILD=1                         Reuse existing executables; skip bundle exec rake.
   XEPHYR_CONTEXT_TEST_DISPLAY_START=1000
                                       First display number to try (must be >= 100).
-  KEEP_TEST_ARTIFACTS=1                Keep service logs and review evidence.
+  LAVINMQ_AMQP_UNIXSOCKET              Existing user-managed LavinMQ UNIX socket.
+  KEEP_TEST_ARTIFACTS=1                Keep Xvfb logs and review evidence.
   REVIEW_EVIDENCE_DIR=PATH             Write review evidence to PATH.
 
 Required commands:
-  bundle, crystal, shards, lavinmq, Xvfb, xdpyinfo, xsetroot, xmessage, xwininfo
+  bundle, crystal, shards, Xvfb, xdpyinfo, xsetroot, xmessage, xwininfo
 USAGE
 }
 
@@ -30,7 +31,7 @@ repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$repository_root"
 
 missing=()
-for command_name in bundle crystal shards lavinmq Xvfb xdpyinfo xsetroot xmessage xwininfo; do
+for command_name in bundle crystal shards Xvfb xdpyinfo xsetroot xmessage xwininfo; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     missing+=("$command_name")
   fi
@@ -46,9 +47,21 @@ if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
   bundle exec rake
 fi
 
-run_dir="$(mktemp -d "${TMPDIR:-/tmp}/xephyr-context-test.XXXXXX")"
+if [[ -z "\${LAVINMQ_AMQP_UNIXSOCKET:-}" ]]; then
+  printf 'LAVINMQ_AMQP_UNIXSOCKET is not set.\n' >&2
+  printf 'The local runner expects the user-managed socket (normally $HOME/.local/share/lavinmq/amqp.sock).\n' >&2
+  printf 'Load the environment configuration that exports this variable, then retry.\n' >&2
+  exit 1
+fi
+
+if [[ ! -S "$LAVINMQ_AMQP_UNIXSOCKET" ]]; then
+  printf 'LAVINMQ_AMQP_UNIXSOCKET does not point to an existing UNIX socket: %s\n' "$LAVINMQ_AMQP_UNIXSOCKET" >&2
+  printf 'Check the user-managed broker with: systemctl --user status lavinmq.socket lavinmq.service\n' >&2
+  exit 1
+fi
+
+run_dir="$(mktemp -d "\${TMPDIR:-/tmp}/xephyr-context-test.XXXXXX")"
 chmod 700 "$run_dir"
-lavinmq_pid=""
 xvfb_pid=""
 
 stop_process() {
@@ -82,13 +95,12 @@ cleanup() {
   trap - EXIT INT TERM
 
   stop_process "$xvfb_pid"
-  stop_process "$lavinmq_pid"
 
-  if [[ "$status" -eq 0 && "${KEEP_TEST_ARTIFACTS:-0}" != "1" ]]; then
+  if [[ "$status" -eq 0 && "\${KEEP_TEST_ARTIFACTS:-0}" != "1" ]]; then
     rm -rf "$run_dir"
   else
     printf '\nTest run files preserved at: %s\n' "$run_dir"
-    for log_file in "$run_dir/lavinmq.log" "$run_dir"/xvfb-*.log; do
+    for log_file in "$run_dir"/xvfb-*.log; do
       if [[ -f "$log_file" ]]; then
         printf '\n--- %s ---\n' "$log_file"
         tail -n 100 "$log_file" || true
@@ -102,53 +114,10 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p "$run_dir/data"
-socket="$run_dir/amqp.sock"
-
-cat > "$run_dir/lavinmq.ini" <<EOF
-[main]
-data_dir = $run_dir/data
-control_unix_path = $run_dir/control.sock
-
-[amqp]
-port = -1
-unix_path = $socket
-
-[mgmt]
-port = -1
-EOF
-
-printf 'Starting isolated LavinMQ...\n'
-lavinmq --config="$run_dir/lavinmq.ini" >"$run_dir/lavinmq.log" 2>&1 &
-lavinmq_pid=$!
-
-socket_ready=0
-for _ in {1..300}; do
-  if [[ -S "$socket" ]]; then
-    socket_ready=1
-    break
-  fi
-
-  if ! kill -0 "$lavinmq_pid" 2>/dev/null; then
-    wait "$lavinmq_pid" 2>/dev/null || true
-    lavinmq_pid=""
-    printf 'LavinMQ exited before creating its AMQP UNIX socket.\n' >&2
-    cat "$run_dir/lavinmq.log" >&2 || true
-    exit 1
-  fi
-
-  sleep 0.1
-done
-
-if [[ "$socket_ready" -ne 1 ]]; then
-  printf 'Timed out waiting for LavinMQ socket: %s\n' "$socket" >&2
-  exit 1
-fi
-export LAVINMQ_AMQP_UNIXSOCKET="$socket"
-
+export LAVINMQ_AMQP_UNIXSOCKET
 display_start="${XEPHYR_CONTEXT_TEST_DISPLAY_START:-1000}"
-if [[ ! "$display_start" =~ ^[0-9]+$ ]] || (( display_start < 100 )); then
-  printf 'XEPHYR_CONTEXT_TEST_DISPLAY_START must be an integer >= 100 (got %s).\n' "$display_start" >&2
+if [[ ! "$display_start" =~ ^[0-9]+$ ]] || (( display_start < 1000 )); then
+  printf 'XEPHYR_CONTEXT_TEST_DISPLAY_START must be an integer >= 1000 (got %s).\n' "$display_start" >&2
   exit 2
 fi
 
@@ -206,7 +175,7 @@ export DISPLAY="$display"
 export XEPHYR_CONTEXT_TEST_DISPLAY="$display"
 export REVIEW_EVIDENCE_DIR="${REVIEW_EVIDENCE_DIR:-$run_dir/review-evidence}"
 
-printf 'LavinMQ socket: %s\n' "$LAVINMQ_AMQP_UNIXSOCKET"
+printf 'Using user-managed LavinMQ socket: %s\n' "$LAVINMQ_AMQP_UNIXSOCKET"
 printf 'Xvfb display:   %s\n' "$XEPHYR_CONTEXT_TEST_DISPLAY"
 printf '\nRunning crystal spec'
 if (( $# > 0 )); then

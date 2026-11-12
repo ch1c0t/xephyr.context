@@ -107,8 +107,8 @@ describe "xephyr.context executable" do
     display = ENV["XEPHYR_CONTEXT_TEST_DISPLAY"]? ||
                raise "XEPHYR_CONTEXT_TEST_DISPLAY must name the Xvfb display allocated for integration specs"
     display_number = display.match(/\A:(\d+)\z/).try { |match| match[1].to_i? }
-    unless display_number && display_number >= 100
-      raise "XEPHYR_CONTEXT_TEST_DISPLAY must be a display number greater than :99 (got #{display.inspect})"
+    unless display_number && display_number >= 1000
+      raise "XEPHYR_CONTEXT_TEST_DISPLAY must be a display number at or above :1000 (got #{display.inspect})"
     end
     socket = ENV["LAVINMQ_AMQP_UNIXSOCKET"]? ||
              raise "LAVINMQ_AMQP_UNIXSOCKET must point to a running LavinMQ UNIX socket"

@@ -80,10 +80,33 @@
   def wait_for_current_state(timeout : Time::Span = 10.seconds) : Result
     raise "Text recognition is closed" if @closed
 
-    state = @context.latest_state ||
-            raise "No framebuffer snapshot has been received yet."
+    if state = @context.latest_state
+      wait_for(state.timestamp, timeout, @full_screen)
+    else
+      wait_for_first_result(timeout)
+    end
+  end
 
-    wait_for(state.timestamp, timeout, @full_screen)
+  private def wait_for_first_result(timeout : Time::Span) : Result
+    started_at = Time.instant
+
+    loop do
+      if result = @latest_result
+        return result if same_region?(result.region, @full_screen)
+      end
+
+      remaining = timeout - (Time.instant - started_at)
+      raise "Timed out waiting for the first OCR result" if remaining <= 0.seconds
+
+      result = select
+      when item = @results.receive
+        item
+      when timeout(remaining)
+        raise "Timed out waiting for the first OCR result"
+      end
+
+      return result if same_region?(result.region, @full_screen)
+    end
   end
 
   def wait_for(

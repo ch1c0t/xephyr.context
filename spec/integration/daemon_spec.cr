@@ -39,6 +39,9 @@ describe "xephyr.context executable" do
       first.height.should eq(480)
       first.raw_pixels.size.should be >= 640 * 480 * 4
 
+      # An unchanged framebuffer must not produce another stream entry.
+      fixture.receive_state_or_nil(200.milliseconds).should be_nil
+
       Process.run(
         "xsetroot",
         ["-solid", "#654321"],

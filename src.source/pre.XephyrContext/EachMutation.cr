@@ -34,6 +34,7 @@ private def start_mutation_consumers : Nil
     next if @stopped
 
     state = build_state_snapshot(payload)
+    @latest_state = state
     @mutation_callbacks.each(&.call(state))
   rescue ex : Exception
     Log.error(exception: ex) { "[XephyrContext Client Error] Failed parsing canvas mutation: #{ex.message}" }

@@ -11,7 +11,7 @@ describe "xephyr.context.inspect executable" do
     display = "spec-inspect-#{Process.pid}-#{Random::Secure.hex(6)}"
     fixture = XephyrContextFixture.new(display)
     directory = File.join("/tmp", "xephyr-inspect-#{Process.pid}-#{Random::Secure.hex(6)}")
-    process : Process?
+    process : Process? = nil
 
     begin
       inspector = Process.new(

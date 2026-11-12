@@ -135,7 +135,7 @@ class XephyrContextFixture
           io << "\n    (none)"
         else
           state.windows.each do |window|
-            io << "\n    - id=" << (window["id"]?.try(&.to_json) || "unknown")
+            io << "\n    - id=" << (window["id"]?.try(&.to_s) || "unknown")
             io << " title=" << (window["title"]?.try(&.as_s) || "(untitled)").inspect
           end
         end

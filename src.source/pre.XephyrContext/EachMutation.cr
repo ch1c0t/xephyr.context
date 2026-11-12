@@ -9,6 +9,11 @@ def each_mutation(&block : State ->)
   start_mutation_consumers
 end
 
+def remove_mutation_callback(callback : Proc(State, Nil)) : Nil
+  @mutation_callbacks.delete(callback)
+  nil
+end
+
 def stop : Nil
   return if @stopped
 

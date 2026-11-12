@@ -89,18 +89,62 @@ class XephyrContextFixture
   end
 
   def receive_state_until(
+    expectation : String = "a matching canvas state",
     within : Time::Span = 5.seconds,
     &predicate : XephyrContext::State -> Bool
   ) : XephyrContext::State
-    deadline = Time.monotonic + within
+    deadline = Time.instant + within
+    observed_states = 0
+    last_state : XephyrContext::State? = nil
 
     loop do
-      remaining = deadline - Time.monotonic
-      raise "Timed out waiting for a matching canvas state from LavinMQ" if remaining <= 0.seconds
+      remaining = deadline - Time.instant
+      if remaining <= 0.seconds
+        raise state_timeout_message(expectation, within, observed_states, last_state)
+      end
 
-      state = receive_state_from(@received_states, remaining)
+      state = receive_state_from_or_nil(@received_states, remaining)
+      unless state
+        raise state_timeout_message(expectation, within, observed_states, last_state)
+      end
+
+      observed_states += 1
+      last_state = state
       return state if predicate.call(state)
     end
+  end
+
+  private def state_timeout_message(
+    expectation : String,
+    within : Time::Span,
+    observed_states : Int32,
+    last_state : XephyrContext::State?
+  ) : String
+    message = String.build do |io|
+      io << "Timed out after " << within << " waiting for " << expectation
+      io << ". Observed " << observed_states << " canvas state(s)."
+
+      if state = last_state
+        io << "\\nLast state:"
+        io << "\\n  timestamp: " << state.timestamp
+        io << "\\n  dimensions: " << state.width << "x" << state.height
+        io << "\\n  raw pixel bytes: " << state.raw_pixels.size
+        io << "\\n  windows:"
+
+        if state.windows.empty?
+          io << "\\n    (none)"
+        else
+          state.windows.each do |window|
+            io << "\\n    - id=" << (window["id"]?.try(&.to_json) || "unknown")
+            io << " title=" << (window["title"]?.try(&.as_s) || "(untitled)").inspect
+          end
+        end
+      else
+        io << "\\nNo canvas states were received during the wait."
+      end
+    end
+
+    message
   end
 
   def receive_state_from(

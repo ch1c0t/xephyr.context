@@ -13,10 +13,18 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      REVIEW_EVIDENCE_DIR: review-evidence
+      REVIEW_PR_NUMBER: ${"$"}{{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: ${"$"}{{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: ${"$"}{{ github.event.pull_request.base.sha || '' }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Initialize review evidence
+        run: ruby script/review_evidence.rb init
 
       - name: Install native dependencies
         run: |
@@ -98,10 +106,12 @@ jobs:
           crystal: 1.22.0
 
       - name: Install Crystal dependencies
-        run: shards install
+        run: ruby script/review_evidence.rb run crystal-dependencies shards install
+        continue-on-error: true
 
       - name: Generate and build executables
-        run: bundle exec rake
+        run: ruby script/review_evidence.rb run build bundle exec rake
+        continue-on-error: true
 
       - name: Start Xvfb
         shell: bash
@@ -121,20 +131,23 @@ jobs:
           exit 1
 
       - name: Run library specs
-        run: crystal spec spec/library
+        run: ruby script/review_evidence.rb run crystal-library-specs crystal spec spec/library
+        continue-on-error: true
 
       - name: Run Xvfb executable integration specs
-        run: crystal spec spec/integration
+        run: ruby script/review_evidence.rb run crystal-integration-specs crystal spec spec/integration
+        continue-on-error: true
 
       - name: Run Ruby CLI specs
-        run: bundle exec rspec
+        run: ruby script/review_evidence.rb run ruby-cli-specs bundle exec rspec
+        continue-on-error: true
 
-      - name: Show LavinMQ log on failure
-        if: failure()
+      - name: Capture runtime process table
+        if: always()
         run: |
-          if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
-            tail -n 200 "$RUNNER_TEMP/lavinmq/lavinmq.log"
-          fi
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          ps -eo pid,ppid,pgid,sid,stat,cmd \
+            > "$REVIEW_EVIDENCE_DIR/logs/processes-before-cleanup.txt" || true
 
       - name: Stop Xvfb
         if: always()
@@ -151,3 +164,27 @@ jobs:
           if [[ -f "$pid_file" ]]; then
             kill "$(cat "$pid_file")" 2>/dev/null || true
           fi
+
+      - name: Collect service logs
+        if: always()
+        run: |
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
+            cp "$RUNNER_TEMP/lavinmq/lavinmq.log" "$REVIEW_EVIDENCE_DIR/logs/lavinmq.log"
+          fi
+          if [[ -f "$RUNNER_TEMP/xvfb.log" ]]; then
+            cp "$RUNNER_TEMP/xvfb.log" "$REVIEW_EVIDENCE_DIR/logs/xvfb.log"
+          fi
+
+      - name: Finalize review evidence
+        if: always()
+        run: ruby script/review_evidence.rb finalize
+
+      - name: Upload review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-evidence-${"$"}{{ github.run_id }}-${"$"}{{ github.run_attempt }}
+          path: review-evidence/
+          if-no-files-found: warn
+          retention-days: 14

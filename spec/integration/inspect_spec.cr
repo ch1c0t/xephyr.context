@@ -42,11 +42,18 @@ describe "xephyr.context.inspect executable" do
       png = File.read(png_files.first).to_slice
       png[0, 8].should eq(Slice[137_u8, 80_u8, 78_u8, 71_u8, 13_u8, 10_u8, 26_u8, 10_u8])
       width = frame.width.to_u32
+      height = frame.height.to_u32
       png[16, 4].to_a.should eq([
         (width >> 24).to_u8,
         (width >> 16).to_u8,
         (width >> 8).to_u8,
         (width & 0xff).to_u8,
+      ])
+      png[20, 4].to_a.should eq([
+        (height >> 24).to_u8,
+        (height >> 16).to_u8,
+        (height >> 8).to_u8,
+        (height & 0xff).to_u8,
       ])
     ensure
       if running = process

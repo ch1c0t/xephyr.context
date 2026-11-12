@@ -9,8 +9,11 @@ The CI workflow uploads a `review-evidence` artifact for every run. The artifact
 - `test-results/commands.json` is the machine-readable list of recorded commands, exit codes, durations, and log paths.
 - `test-results/commands.jsonl` is the append-only record used to produce the JSON report.
 - `test-results/*.log` contains each recorded command's combined standard output and standard error.
-- `logs/` contains Xvfb, LavinMQ, and process-table diagnostics when available.
+- `logs/` contains Xvfb, LavinMQ, process-table diagnostics, daemon stdout/stderr, and captured `xwininfo` snapshots when available.
+- `traces/daemon-lifecycle.jsonl` records the integration scenario's timestamped events and every observed framebuffer/spatial state, including dimensions, pixel-byte count/hash, and window metadata.
 - `inspection/` contains the exact PNG and OCR text produced by the inspector executable integration test, plus metadata describing the assertions.
+
+The daemon integration test writes its own diagnostic evidence before assertions complete, so process output, X11 window snapshots, and the last received state remain available after a timeout or assertion failure. State-wait timeouts include the number of observed states and a summary of the last state. The test waits for the target window title to disappear instead of requiring the entire X11 window list to be empty.
 
 The artifact is uploaded even when tests fail. The reporting script records each check independently, allowing later checks and diagnostic collection to run after a failure. It also tracks the five expected CI commands and marks the report incomplete when an expected command never ran. Finalization fails the job for failed or missing checks; artifact-upload failure is configured not to hide the original test result.
 

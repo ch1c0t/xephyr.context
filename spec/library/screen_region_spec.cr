@@ -12,9 +12,12 @@ describe "XephyrContext::ScreenRegion" do
   end
 
   it "resolves regions from symbols" do
-    XephyrContext::ScreenRegion.from_symbol(:bottom_tenth).should eq(
-      XephyrContext::ScreenRegion.bottom_tenth
-    )
+    region = XephyrContext::ScreenRegion.from_symbol(:bottom_tenth)
+
+    region.x.should eq(0.0)
+    region.y.should eq(0.9)
+    region.width.should eq(1.0)
+    region.height.should eq(0.1)
   end
 
   it "rejects origins outside the screen" do

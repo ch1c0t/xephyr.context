@@ -1,5 +1,6 @@
 require "spec"
 require "random/secure"
+require "file_utils"
 require "../library/fixtures/xephyr_context"
 require "../library/fixtures/readiness_frame"
 

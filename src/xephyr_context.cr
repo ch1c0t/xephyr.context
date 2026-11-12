@@ -36,12 +36,12 @@ class XephyrContext
     
       @spatial_queue.consume("#{@consumer_prefix}-spatial") do |payload|
         next if @stopped
-
+    
         windows = parse_spatial_windows(payload)
         next if windows == @current_spatial_data
-
+    
         @current_spatial_data = windows
-
+    
         if previous_state = @latest_state
           state = State.new(
             windows:    windows,
@@ -50,7 +50,7 @@ class XephyrContext
             height:     previous_state.height,
             timestamp:  previous_state.timestamp
           )
-
+    
           @latest_state = state
           @mutation_callbacks.each(&.call(state))
           Log.trace { "[XephyrContext] Spatial metadata changed windows=#{windows.size} frame=#{state.timestamp}" }

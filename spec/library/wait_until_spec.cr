@@ -1,10 +1,10 @@
 require "spec"
-require "./latest_state_fixture"
+require "./fixtures/xephyr_context"
 require "./fixtures/readiness_frame"
 
 describe "XephyrContext#wait_until" do
   it "times out without initializing OCR when no canvas mutation arrives" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       triggered = false
@@ -24,7 +24,7 @@ describe "XephyrContext#wait_until" do
   end
 
   it "returns the frame whose recognized text matches without case sensitivity" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       frame = ReadinessFrame.new
@@ -44,7 +44,7 @@ describe "XephyrContext#wait_until" do
   end
 
   it "can be used again after a previous wait times out" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       expect_raises(Exception, "Timed out waiting for \"READY\"") do

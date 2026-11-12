@@ -36,7 +36,27 @@ class XephyrContext
     
       @spatial_queue.consume("#{@consumer_prefix}-spatial") do |payload|
         next if @stopped
-        @current_spatial_data = parse_spatial_windows(payload)
+
+        windows = parse_spatial_windows(payload)
+        next if windows == @current_spatial_data
+
+        @current_spatial_data = windows
+
+        if previous_state = @latest_state
+          state = State.new(
+            windows:    windows,
+            raw_pixels: previous_state.raw_pixels,
+            width:      previous_state.width,
+            height:     previous_state.height,
+            timestamp:  previous_state.timestamp
+          )
+
+          @latest_state = state
+          @mutation_callbacks.each(&.call(state))
+          Log.trace { "[XephyrContext] Spatial metadata changed windows=#{windows.size} frame=#{state.timestamp}" }
+        end
+      rescue ex : Exception
+        Log.error(exception: ex) { "[XephyrContext Client Error] Failed applying spatial mutation: #{ex.message}" }
       end
     
       @canvas_queue.consume("next", "#{@consumer_prefix}-canvas") do |payload|

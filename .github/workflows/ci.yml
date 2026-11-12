@@ -24,6 +24,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Validate local test runner syntax
+        run: bash -n script/test
+
       - name: Initialize review evidence
         run: ruby script/review_evidence.rb init
 

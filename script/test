@@ -12,7 +12,7 @@ runs crystal spec, then stops only the Xvfb process started by this script.
 Environment:
   SKIP_BUILD=1                         Reuse existing executables; skip bundle exec rake.
   XEPHYR_CONTEXT_TEST_DISPLAY_START=1000
-                                      First display number to try (must be >= 100).
+                                      First display number to try (must be >= 1000).
   LAVINMQ_AMQP_UNIXSOCKET              Existing user-managed LavinMQ UNIX socket.
   KEEP_TEST_ARTIFACTS=1                Keep Xvfb logs and review evidence.
   REVIEW_EVIDENCE_DIR=PATH             Write review evidence to PATH.
@@ -39,15 +39,11 @@ done
 
 if (( ${#missing[@]} > 0 )); then
   printf 'Missing required commands: %s\n' "${missing[*]}" >&2
-  printf 'Install Crystal/Shards, Ruby/Bundler, LavinMQ, xvfb, x11-utils, and x11-xserver-utils.\n' >&2
+  printf 'Install Crystal/Shards, Ruby/Bundler, xvfb, x11-utils, and x11-xserver-utils.\n' >&2
   exit 1
 fi
 
-if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
-  bundle exec rake
-fi
-
-if [[ -z "\${LAVINMQ_AMQP_UNIXSOCKET:-}" ]]; then
+if [[ -z "${LAVINMQ_AMQP_UNIXSOCKET:-}" ]]; then
   printf 'LAVINMQ_AMQP_UNIXSOCKET is not set.\n' >&2
   printf 'The local runner expects the user-managed socket (normally $HOME/.local/share/lavinmq/amqp.sock).\n' >&2
   printf 'Load the environment configuration that exports this variable, then retry.\n' >&2
@@ -60,7 +56,12 @@ if [[ ! -S "$LAVINMQ_AMQP_UNIXSOCKET" ]]; then
   exit 1
 fi
 
-run_dir="$(mktemp -d "\${TMPDIR:-/tmp}/xephyr-context-test.XXXXXX")"
+
+if [[ "${SKIP_BUILD:-0}" != "1" ]]; then
+  bundle exec rake
+fi
+
+run_dir="$(mktemp -d "${TMPDIR:-/tmp}/xephyr-context-test.XXXXXX")"
 chmod 700 "$run_dir"
 xvfb_pid=""
 
@@ -96,7 +97,7 @@ cleanup() {
 
   stop_process "$xvfb_pid"
 
-  if [[ "$status" -eq 0 && "\${KEEP_TEST_ARTIFACTS:-0}" != "1" ]]; then
+  if [[ "$status" -eq 0 && "${KEEP_TEST_ARTIFACTS:-0}" != "1" ]]; then
     rm -rf "$run_dir"
   else
     printf '\nTest run files preserved at: %s\n' "$run_dir"

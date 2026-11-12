@@ -17,8 +17,8 @@ describe "XephyrContext::TextRecognition" do
       result.text.upcase.should contain("READY")
       result.success?.should be_true
 
-      recognition.latest_for_current_state.should be(result)
-      recognition.wait_for_current_state.should be(result)
+      recognition.latest_for_current_state.not_nil!.same?(result).should be_true
+      recognition.wait_for_current_state.same?(result).should be_true
     ensure
       recognition.close
       fixture.close

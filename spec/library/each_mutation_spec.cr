@@ -1,9 +1,9 @@
 require "spec"
-require "./latest_state_fixture"
+require "./fixtures/xephyr_context"
 
 describe "XephyrContext#each_mutation and #stop" do
   it "delivers every canvas mutation to each registered callback" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       first_callback = Channel(XephyrContext::State).new(2)
@@ -38,7 +38,7 @@ describe "XephyrContext#each_mutation and #stop" do
   end
 
   it "stops delivery and rejects new subscriptions after stop" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       fixture.subscribe
@@ -62,7 +62,7 @@ describe "XephyrContext#each_mutation and #stop" do
   end
 
   it "can be stopped before any consumer is started" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       fixture.context.stop

@@ -1,9 +1,9 @@
 require "spec"
-require "./latest_state_fixture"
+require "./fixtures/xephyr_context"
 
 describe "XephyrContext#replay_mutations" do
   it "replays stored canvas mutations from the first stream entry by default" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       first_pixels = Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8]
@@ -30,7 +30,7 @@ describe "XephyrContext#replay_mutations" do
   end
 
   it "cancels the replay consumer when the context is stopped" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       first_pixels = Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8]

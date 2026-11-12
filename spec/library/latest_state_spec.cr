@@ -1,9 +1,9 @@
 require "spec"
-require "./latest_state_fixture"
+require "./fixtures/xephyr_context"
 
 describe "XephyrContext#latest_state" do
   it "is nil until the first canvas mutation is received" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       fixture.context.latest_state.should be_nil
@@ -13,7 +13,7 @@ describe "XephyrContext#latest_state" do
   end
 
   it "caches the newest state without changing mutation callbacks" do
-    fixture = LatestStateFixture.new
+    fixture = XephyrContextFixture.new
 
     begin
       first_pixels = Slice[0x10_u8, 0x20_u8, 0x30_u8, 0xff_u8,

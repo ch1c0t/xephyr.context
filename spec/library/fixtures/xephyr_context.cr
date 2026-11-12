@@ -3,9 +3,9 @@ require "compress/deflate"
 require "json"
 require "random/secure"
 
-require "../../src/xephyr_context"
+require "../../../src/xephyr_context"
 
-class LatestStateFixture
+class XephyrContextFixture
   getter context : XephyrContext
 
   @connection : AMQP::Client::Connection

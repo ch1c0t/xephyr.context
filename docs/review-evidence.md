@@ -12,7 +12,7 @@ The CI workflow uploads a `review-evidence` artifact for every run. The artifact
 - `logs/` contains Xvfb, LavinMQ, and process-table diagnostics when available.
 - `inspection/` contains the exact PNG and OCR text produced by the inspector executable integration test, plus metadata describing the assertions.
 
-The artifact is uploaded even when tests fail. The reporting script records each check independently, allowing later checks and diagnostic collection to run after a failure. The finalization step fails the job when a recorded command failed; artifact-upload failure is configured not to hide the original test result.
+The artifact is uploaded even when tests fail. The reporting script records each check independently, allowing later checks and diagnostic collection to run after a failure. It also tracks the five expected CI commands and marks the report incomplete when an expected command never ran. Finalization fails the job for failed or missing checks; artifact-upload failure is configured not to hide the original test result.
 
 ## Local use
 

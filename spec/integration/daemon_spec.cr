@@ -14,28 +14,28 @@ class DaemonLifecycleTrace
     details : String? = nil,
     state : XephyrContext::State? = nil
   ) : Nil
-    File.open(@path, "a") do |file|
-      file.puts JSON.build do |json|
-        json.object do
-          json.field "at_utc", Time.utc.to_s
-          json.field "event", event
-          json.field "details", details if details
+    payload = JSON.build do |json|
+      json.object do
+        json.field "at_utc", Time.utc.to_s
+        json.field "event", event
+        json.field "details", details if details
 
-          if state
-            json.field "state" do
-              json.object do
-                json.field "timestamp", state.timestamp
-                json.field "width", state.width
-                json.field "height", state.height
-                json.field "raw_pixel_bytes", state.raw_pixels.size
-                json.field "raw_pixel_hash", state.raw_pixels.hash.to_s
-                json.field "windows", state.windows
-              end
+        if state
+          json.field "state" do
+            json.object do
+              json.field "timestamp", state.timestamp
+              json.field "width", state.width
+              json.field "height", state.height
+              json.field "raw_pixel_bytes", state.raw_pixels.size
+              json.field "raw_pixel_hash", state.raw_pixels.hash.to_s
+              json.field "windows", state.windows
             end
           end
         end
       end
     end
+
+    File.open(@path, "a") { |file| file.puts(payload) }
   end
 end
 

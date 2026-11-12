@@ -99,7 +99,7 @@ class XephyrContextFixture
       raise "Timed out waiting for a matching canvas state from LavinMQ" if remaining <= 0.seconds
 
       state = receive_state_from(@received_states, remaining)
-      return state if yield state
+      return state if predicate.call(state)
     end
   end
 

@@ -37,6 +37,11 @@ class ReviewEvidence
       evidence: "logs/x11-window-snapshots.log, traces/daemon-lifecycle.jsonl"
     },
     {
+      requirement: "Spatial metadata arriving after a framebuffer produces a fresh state without another frame",
+      verification: "spec/library/each_mutation_spec.cr",
+      evidence: "test-results/*crystal-library-specs.log"
+    },
+    {
       requirement: "Library state, replay, and wait_until contracts remain correct",
       verification: "spec/library/**/*_spec.cr",
       evidence: "test-results/*crystal-library-specs.log"

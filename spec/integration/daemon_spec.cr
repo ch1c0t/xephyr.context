@@ -21,7 +21,7 @@ describe "xephyr.context executable" do
         error: Process::Redirect::Close
       ).success?.should be_true
 
-      process = Process.new(
+      producer = Process.new(
         "./bin/xephyr.context",
         env: {
           "DISPLAY_TARGET" => display,
@@ -31,6 +31,8 @@ describe "xephyr.context executable" do
         output: Process::Redirect::Close,
         error: Process::Redirect::Close
       )
+
+      process = producer
 
       first = fixture.receive_state
       first.width.should eq(640)
@@ -49,8 +51,8 @@ describe "xephyr.context executable" do
       second.timestamp.should be >= first.timestamp
       second.raw_pixels.to_a.should_not eq(first.raw_pixels.to_a)
 
-      process.signal(Signal::TERM)
-      process.wait.success?.should be_true
+      producer.signal(Signal::TERM)
+      producer.wait.success?.should be_true
       process = nil
     ensure
       if running = process

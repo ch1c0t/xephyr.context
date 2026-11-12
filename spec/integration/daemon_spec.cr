@@ -8,7 +8,7 @@ describe "xephyr.context executable" do
              raise "LAVINMQ_AMQP_UNIXSOCKET must point to a running LavinMQ UNIX socket"
 
     fixture = XephyrContextFixture.new(display)
-    process : Process?
+    process : Process? = nil
 
     begin
       fixture.subscribe

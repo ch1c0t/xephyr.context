@@ -9,6 +9,7 @@ describe "xephyr.context executable" do
 
     fixture = XephyrContextFixture.new(display)
     process : Process? = nil
+    window_process : Process? = nil
 
     begin
       fixture.subscribe
@@ -42,6 +43,16 @@ describe "xephyr.context executable" do
       # An unchanged framebuffer must not produce another stream entry.
       fixture.receive_state_or_nil(200.milliseconds).should be_nil
 
+      window = Process.new(
+        "xmessage",
+        ["-title", "xephyr-context-integration-window", "visible window"],
+        env: {"DISPLAY" => display},
+        output: Process::Redirect::Close,
+        error: Process::Redirect::Close
+      )
+      window_process = window
+      sleep 150.milliseconds
+
       Process.run(
         "xsetroot",
         ["-solid", "#654321"],
@@ -53,11 +64,35 @@ describe "xephyr.context executable" do
       second = fixture.receive_state
       second.timestamp.should be >= first.timestamp
       second.raw_pixels.to_a.should_not eq(first.raw_pixels.to_a)
+      second.windows.any? { |item| item["title"].as_s == "xephyr-context-integration-window" }.should be_true
+
+      window.signal(Signal::TERM)
+      window.wait
+      window_process = nil
+      sleep 150.milliseconds
+
+      Process.run(
+        "xsetroot",
+        ["-solid", "#123456"],
+        env: {"DISPLAY" => display},
+        output: Process::Redirect::Close,
+        error: Process::Redirect::Close
+      ).success?.should be_true
+
+      third = fixture.receive_state
+      third.windows.should be_empty
 
       producer.signal(Signal::TERM)
       producer.wait.success?.should be_true
       process = nil
     ensure
+      if running = window_process
+        begin
+          running.signal(Signal::TERM)
+          running.wait
+        rescue
+        end
+      end
       if running = process
         begin
           running.signal(Signal::TERM)

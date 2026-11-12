@@ -32,3 +32,22 @@ Set `REVIEW_EVIDENCE_DIR` to change the output directory. The `run` command acce
 ## Extending the evidence
 
 When a new behavior is important to a reviewer, add its requirement, verification, and retained artifact to the matrix in `script/review_evidence.rb`. Prefer evidence that is produced by the real executable or integration path. Keep transient evidence in the uploaded artifact rather than in source control, and avoid including credentials, private environment variables, or unrelated user data in logs.
+
+## Automatic pull request comment
+
+For `pull_request` workflow runs, CI publishes one bot-managed comment on the PR after evidence finalization and artifact upload have completed.
+
+The comment reports:
+- The exact PR head commit tested.
+- The overall result: passed, checks failed, evidence incomplete, evidence artifact unavailable, or evidence generation failed.
+- Each recorded command's result, duration, and exit code.
+- Missing expected checks and failed checks.
+- Links to the workflow run and, when upload succeeds, the downloadable evidence artifact.
+
+The publisher updates the existing comment identified by `<!-- review-evidence -->`; it does not create a new comment for each commit or rerun. It fingerprints the tested commit, check outcomes, missing checks, and artifact availability. Identical reruns are therefore skipped, while a new PR commit, a changed check result, or a change in artifact availability updates the comment.
+
+Before publishing, it fetches the current PR head SHA. A run whose tested SHA is no longer the current PR head is ignored, so a slower older run cannot overwrite newer evidence. The publisher runs only for pull-request events, not pushes to `main` or manual workflow dispatches.
+
+Comment publishing has `pull-requests: write` permission and is configured not to change the test result if commenting itself fails. GitHub normally provides read-only workflow tokens to workflows triggered by pull requests from forks, so those runs may upload evidence successfully but be unable to create or update the PR comment. In that case, the workflow run and artifact remain available through the Actions UI.
+
+The upload action's artifact URL is used rather than constructing a download URL. Artifact links require repository access and expire with the artifact retention period.

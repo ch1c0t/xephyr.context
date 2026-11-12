@@ -13,7 +13,7 @@ describe "xephyr.context.inspect executable" do
     process : Process?
 
     begin
-      process = Process.new(
+      inspector = Process.new(
         "./bin/xephyr.context.inspect",
         ["--replay", "first", "--count", "1", "--ocr", "--save-dir", directory],
         env: {
@@ -24,15 +24,14 @@ describe "xephyr.context.inspect executable" do
         error: Process::Redirect::Close
       )
 
+      process = inspector
       frame = ReadinessFrame.new
       fixture.publish_frame(Time.utc.to_unix, frame.pixels, frame.width, frame.height)
 
-      status = process.wait
+      status = inspector.wait
       status.success?.should be_true
       process = nil
 
-      image_path = File.join(directory, "frame_#{Time.utc.to_unix}.png")
-      # The producer timestamp is captured once below in the filename assertion.
       png_files = Dir.glob(File.join(directory, "*.png"))
       text_files = Dir.glob(File.join(directory, "*.txt"))
       png_files.size.should eq(1)

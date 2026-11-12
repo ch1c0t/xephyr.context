@@ -17,7 +17,7 @@ describe Screenshot do
       2,
       2
     )
-    directory = File.join(Dir.tempdir, "xephyr-context-#{Random::Secure.hex(8)}")
+    directory = File.join("/tmp", "xephyr-context-#{Process.pid}-#{Random::Secure.hex(8)}")
 
     begin
       Screenshot.new(state).save_to(directory)

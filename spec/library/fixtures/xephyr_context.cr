@@ -3,7 +3,7 @@ require "compress/deflate"
 require "json"
 require "random/secure"
 
-require "../../src/xephyr_context"
+require "../../../src/xephyr_context"
 
 class XephyrContextFixture
   getter context : XephyrContext

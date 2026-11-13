@@ -1,0 +1,73 @@
+name: Build
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      REVIEW_EVIDENCE_DIR: review-evidence
+      REVIEW_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Initialize review evidence
+        run: ruby script/review_evidence.rb init
+
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libtesseract-dev \
+            libx11-dev
+
+      - name: Set up Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.22.0
+
+      - name: Validate local test runner syntax
+        run: bash -n script/test
+
+      - name: Install Crystal dependencies
+        run: ruby script/review_evidence.rb run crystal-dependencies shards install
+        continue-on-error: true
+
+      - name: Generate and build executables
+        run: ruby script/review_evidence.rb run build bundle exec rake
+        continue-on-error: true
+
+      - name: Upload executable binaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xephyr-context-binaries-${{ github.run_attempt }}
+          path: bin/*
+          if-no-files-found: warn
+          retention-days: 1
+
+      - name: Upload build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-evidence-build-${{ github.run_attempt }}
+          path: review-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verify recorded checks
+        if: always()
+        run: ruby script/review_evidence.rb verify

@@ -72,6 +72,10 @@ class ReviewEvidence
       0
     when "run"
       run_command(arguments)
+    when "merge"
+      merge_evidence(arguments)
+    when "verify"
+      verify_commands
     when "finalize"
       finalize_evidence
     else
@@ -79,6 +83,8 @@ class ReviewEvidence
         Usage:
           ruby script/review_evidence.rb init
           ruby script/review_evidence.rb run NAME COMMAND [ARG ...]
+          ruby script/review_evidence.rb merge PATH [PATH ...]
+          ruby script/review_evidence.rb verify
           ruby script/review_evidence.rb finalize
 
         REVIEW_EVIDENCE_DIR may override the output directory.
@@ -160,6 +166,125 @@ class ReviewEvidence
       end
     end
     exit_code
+  end
+
+
+  def merge_evidence(arguments)
+    raise "merge requires one or more evidence artifact directories" if arguments.empty?
+    ensure_initialized
+
+    records_path = File.join(@evidence_dir, "test-results", "commands.jsonl")
+    sequence = File.exist?(records_path) ? File.foreach(records_path).count + 1 : 1
+    imported_artifacts = []
+
+    arguments.each do |argument|
+      source = File.expand_path(argument, @repository_root)
+      unless File.directory?(source)
+        warn "Skipping missing evidence artifact directory: #{argument}"
+        next
+      end
+
+      artifact_name = File.basename(source)
+      imported_artifacts << artifact_name
+      import_worker_manifest(source, artifact_name)
+      sequence = import_command_records(source, artifact_name, records_path, sequence)
+      %w[logs inspection traces].each do |directory|
+        import_evidence_directory(source, artifact_name, directory)
+      end
+    end
+
+    manifest = read_json("manifest.json")
+    manifest["evidence_sources"] = imported_artifacts
+    write_json("manifest.json", manifest)
+
+    puts "Merged evidence from #{imported_artifacts.length} worker artifact(s)"
+    0
+  end
+
+  def verify_commands
+    ensure_initialized
+    failed = read_command_records.select { |record| record.fetch("status") == "failed" }
+    return 0 if failed.empty?
+
+    failed.each do |record|
+      warn "Recorded check failed: #{record.fetch('name')} (exit #{record.fetch('exit_code')})"
+    end
+    1
+  end
+
+  def import_worker_manifest(source, artifact_name)
+    path = File.join(source, "manifest.json")
+    return unless File.file?(path)
+
+    worker_directory = File.join(@evidence_dir, "workers")
+    FileUtils.mkdir_p(worker_directory)
+    destination = File.join(worker_directory, "#{artifact_name}.json")
+    FileUtils.cp(path, destination)
+
+    manifest = read_json("manifest.json")
+    manifest["worker_runs"] ||= []
+    worker_manifest = JSON.parse(File.read(path))
+    manifest["worker_runs"] << {
+      "artifact" => artifact_name,
+      "workflow" => worker_manifest["workflow"],
+      "commit" => worker_manifest["commit"],
+      "pull_request" => worker_manifest["pull_request"]
+    }
+    write_json("manifest.json", manifest)
+  end
+
+  def import_command_records(source, artifact_name, records_path, sequence)
+    source_records = File.join(source, "test-results", "commands.jsonl")
+    return sequence unless File.file?(source_records)
+
+    File.foreach(source_records) do |line|
+      next if line.strip.empty?
+
+      record = JSON.parse(line)
+      source_log = File.expand_path(record.fetch("log"), source)
+      source_prefix = "#{File.expand_path(source)}/"
+      unless source_log.start_with?(source_prefix)
+        raise "command log path escapes evidence artifact directory: #{record['log'].inspect}"
+      end
+
+      log_name = format("%03d-%s.log", sequence, record.fetch("name"))
+      destination_log = File.join(@evidence_dir, "test-results", log_name)
+      if File.file?(source_log)
+        FileUtils.cp(source_log, destination_log)
+      else
+        File.write(destination_log, "Original command log is missing from artifact #{artifact_name}: #{record['log']}\n")
+      end
+
+      record["log"] = relative_path(destination_log)
+      record["artifact"] = artifact_name
+      File.open(records_path, "a") { |file| file.puts(JSON.generate(record)) }
+      sequence += 1
+    end
+
+    sequence
+  end
+
+  def import_evidence_directory(source, artifact_name, directory)
+    source_directory = File.join(source, directory)
+    return unless File.directory?(source_directory)
+
+    Dir.glob(File.join(source_directory, "**", "*"), File::FNM_DOTMATCH).each do |entry|
+      next unless File.file?(entry)
+
+      relative = entry.delete_prefix("#{source_directory}/")
+      destination = File.join(@evidence_dir, directory, relative)
+      FileUtils.mkdir_p(File.dirname(destination))
+
+      if File.exist?(destination)
+        next if FileUtils.compare_file(entry, destination)
+
+        extension = File.extname(destination)
+        basename = File.basename(destination, extension)
+        destination = File.join(File.dirname(destination), "#{basename}-#{artifact_name}#{extension}")
+      end
+
+      FileUtils.cp(entry, destination)
+    end
   end
 
   def finalize_evidence

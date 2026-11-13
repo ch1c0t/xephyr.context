@@ -60,7 +60,7 @@ jobs:
 
       - name: Capture runtime process table
         if: always()
-        run: mkdir -p "$REVIEW_EVIDENCE_DIR/logs" && ps -eo pid,ppid,pgid,sid,stat,cmd > "$REVIEW_EVIDENCE_DIR/logs/processes-before-cleanup.txt" || true
+        run: script/ci/capture-process-table.sh
 
       - name: Stop Xvfb
         if: always()

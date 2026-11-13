@@ -3,8 +3,8 @@ set -euo pipefail
 
 runner_temp="${RUNNER_TEMP:?RUNNER_TEMP must be set}"
 github_env="${GITHUB_ENV:?GITHUB_ENV must be set}"
-display="${XEPHYR_CONTEXT_TEST_DISPLAY:-:1000}"
-display_number="${display#:}"
+display=":1000"
+display_number="1000"
 socket="/tmp/.X11-unix/X$display_number"
 
 # Keep the integration display outside the low-number range used by xephyrd.

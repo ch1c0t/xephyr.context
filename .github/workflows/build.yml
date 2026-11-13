@@ -27,20 +27,15 @@ jobs:
         run: ruby script/review_evidence.rb init
 
       - name: Install native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            libtesseract-dev \
-            libx11-dev
+        run: script/ci/install-build-dependencies.sh
 
       - name: Set up Crystal
         uses: crystal-lang/install-crystal@v1
         with:
           crystal: 1.22.0
 
-      - name: Validate local test runner syntax
-        run: bash -n script/test
+      - name: Validate CI script syntax
+        run: script/ci/check-syntax.sh
 
       - name: Install Crystal dependencies
         run: ruby script/review_evidence.rb run crystal-dependencies shards install

@@ -73,7 +73,7 @@ jobs:
           done
 
           if ((${#artifacts[@]})); then
-            ruby script/review_evidence.rb merge "\${artifacts[@]}"
+            ruby script/review_evidence.rb merge "${artifacts[@]}"
           else
             echo "No worker evidence artifacts were downloaded."
           fi

@@ -9,9 +9,9 @@ jobs:
     timeout-minutes: 20
     env:
       REVIEW_EVIDENCE_DIR: review-evidence
-      REVIEW_PR_NUMBER: \${{ github.event.pull_request.number || '' }}
-      REVIEW_PR_HEAD_SHA: \${{ github.event.pull_request.head.sha || '' }}
-      REVIEW_BASE_SHA: \${{ github.event.pull_request.base.sha || '' }}
+      REVIEW_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
 
     steps:
       - name: Check out repository
@@ -104,7 +104,7 @@ jobs:
       - name: Download built executables
         uses: actions/download-artifact@v4
         with:
-          name: xephyr-context-binaries-\${{ github.run_attempt }}
+          name: xephyr-context-binaries-${{ github.run_attempt }}
           path: bin
 
       - name: Restore executable permissions
@@ -171,7 +171,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: review-evidence-integration-\${{ github.run_attempt }}
+          name: review-evidence-integration-${{ github.run_attempt }}
           path: review-evidence/
           if-no-files-found: warn
           retention-days: 14

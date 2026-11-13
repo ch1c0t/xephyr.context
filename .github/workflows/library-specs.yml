@@ -1,0 +1,59 @@
+name: Crystal library specs
+
+on:
+  workflow_call:
+
+jobs:
+  library-specs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      REVIEW_EVIDENCE_DIR: review-evidence
+      REVIEW_PR_NUMBER: \${{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: \${{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: \${{ github.event.pull_request.base.sha || '' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Initialize review evidence
+        run: ruby script/review_evidence.rb init
+
+      - name: Install Tesseract dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libtesseract-dev \
+            tesseract-ocr-eng
+
+      - name: Set up Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.22.0
+
+      - name: Install Crystal dependencies
+        run: shards install
+
+      - name: Run library specs
+        run: ruby script/review_evidence.rb run crystal-library-specs crystal spec spec/library
+        continue-on-error: true
+
+      - name: Upload library evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-evidence-library-\${{ github.run_attempt }}
+          path: review-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verify recorded checks
+        if: always()
+        run: ruby script/review_evidence.rb verify

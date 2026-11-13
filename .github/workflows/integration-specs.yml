@@ -1,0 +1,181 @@
+name: Xvfb integration specs
+
+on:
+  workflow_call:
+
+jobs:
+  integration-specs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      REVIEW_EVIDENCE_DIR: review-evidence
+      REVIEW_PR_NUMBER: \${{ github.event.pull_request.number || '' }}
+      REVIEW_PR_HEAD_SHA: \${{ github.event.pull_request.head.sha || '' }}
+      REVIEW_BASE_SHA: \${{ github.event.pull_request.base.sha || '' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Initialize review evidence
+        run: ruby script/review_evidence.rb init
+
+      - name: Install native and X11 dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ca-certificates \
+            curl \
+            gnupg \
+            libtesseract-dev \
+            libx11-dev \
+            tesseract-ocr-eng \
+            xvfb \
+            x11-utils \
+            x11-xserver-utils
+
+      - name: Install LavinMQ package repository
+        run: |
+          curl -fsSL https://packagecloud.io/install/repositories/cloudamqp/lavinmq/script.deb.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install -y lavinmq
+          sudo systemctl stop lavinmq.service || true
+
+      - name: Start isolated LavinMQ instance
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          directory="$RUNNER_TEMP/lavinmq"
+          socket="$directory/amqp.sock"
+          mkdir -p "$directory/data"
+
+          cat > "$directory/lavinmq.ini" <<EOF
+          [main]
+          data_dir = $directory/data
+          control_unix_path = $directory/control.sock
+
+          [amqp]
+          port = -1
+          unix_path = $socket
+
+          [mgmt]
+          port = -1
+          EOF
+
+          lavinmq --config="$directory/lavinmq.ini" \
+            >"$directory/lavinmq.log" 2>&1 &
+          pid=$!
+          echo "$pid" > "$directory/lavinmq.pid"
+
+          for attempt in $(seq 1 30); do
+            if [[ -S "$socket" ]]; then
+              echo "LAVINMQ_AMQP_UNIXSOCKET=$socket" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat "$directory/lavinmq.log"
+              echo "LavinMQ exited before creating its AMQP socket" >&2
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          cat "$directory/lavinmq.log"
+          echo "Timed out waiting for the LavinMQ UNIX socket" >&2
+          exit 1
+
+      - name: Set up Crystal
+        uses: crystal-lang/install-crystal@v1
+        with:
+          crystal: 1.22.0
+
+      - name: Install Crystal dependencies
+        run: shards install
+
+      - name: Download built executables
+        uses: actions/download-artifact@v4
+        with:
+          name: xephyr-context-binaries-\${{ github.run_attempt }}
+          path: bin
+
+      - name: Restore executable permissions
+        run: chmod +x bin/*
+
+      - name: Start Xvfb
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the integration display outside the low-number range used by xephyrd.
+          Xvfb :1000 -screen 0 640x480x24 -nolisten tcp >"$RUNNER_TEMP/xvfb.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/xvfb.pid"
+          for attempt in $(seq 1 30); do
+            if [[ -S /tmp/.X11-unix/X1000 ]]; then
+              echo "DISPLAY=:1000" >> "$GITHUB_ENV"
+              echo "XEPHYR_CONTEXT_TEST_DISPLAY=:1000" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/xvfb.log"
+          echo "Timed out waiting for Xvfb" >&2
+          exit 1
+
+      - name: Run Xvfb executable integration specs
+        run: ruby script/review_evidence.rb run crystal-integration-specs crystal spec spec/integration
+        continue-on-error: true
+
+      - name: Capture runtime process table
+        if: always()
+        run: |
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          ps -eo pid,ppid,pgid,sid,stat,cmd \
+            > "$REVIEW_EVIDENCE_DIR/logs/processes-before-cleanup.txt" || true
+
+      - name: Stop Xvfb
+        if: always()
+        run: |
+          pid_file="$RUNNER_TEMP/xvfb.pid"
+          if [[ -f "$pid_file" ]]; then
+            kill "$(cat "$pid_file")" 2>/dev/null || true
+          fi
+
+      - name: Stop LavinMQ
+        if: always()
+        run: |
+          pid_file="$RUNNER_TEMP/lavinmq/lavinmq.pid"
+          if [[ -f "$pid_file" ]]; then
+            kill "$(cat "$pid_file")" 2>/dev/null || true
+          fi
+
+      - name: Collect service logs
+        if: always()
+        run: |
+          mkdir -p "$REVIEW_EVIDENCE_DIR/logs"
+          if [[ -f "$RUNNER_TEMP/lavinmq/lavinmq.log" ]]; then
+            cp "$RUNNER_TEMP/lavinmq/lavinmq.log" "$REVIEW_EVIDENCE_DIR/logs/lavinmq.log"
+          fi
+          if [[ -f "$RUNNER_TEMP/xvfb.log" ]]; then
+            cp "$RUNNER_TEMP/xvfb.log" "$REVIEW_EVIDENCE_DIR/logs/xvfb.log"
+          fi
+
+      - name: Upload integration evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-evidence-integration-\${{ github.run_attempt }}
+          path: review-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Verify recorded checks
+        if: always()
+        run: ruby script/review_evidence.rb verify

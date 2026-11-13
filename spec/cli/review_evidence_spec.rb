@@ -104,6 +104,10 @@ RSpec.describe "review evidence reporter" do
     _, _, verify_status = invoke(evidence_directory, "verify")
     expect(verify_status).to be_success
 
+    _, _, finalize_status = invoke(evidence_directory, "finalize")
+    expect(finalize_status.exitstatus).to eq(1)
+
+    records = JSON.parse(File.read(File.join(evidence_directory, "test-results", "commands.json")))
     expect(records.length).to eq(1)
     expect(records.first.fetch("name")).to eq("crystal-library-specs")
     expect(records.first.fetch("artifact")).to eq(File.basename(worker_evidence_directory))
@@ -111,9 +115,6 @@ RSpec.describe "review evidence reporter" do
     expect(File.read(File.join(evidence_directory, "logs", "daemon.log"))).to include("daemon output")
     expect(File.read(File.join(evidence_directory, "traces", "lifecycle.jsonl"))).to include("stopped")
     expect(Dir.glob(File.join(evidence_directory, "workers", "*.json")).length).to eq(1)
-
-    _, _, finalize_status = invoke(evidence_directory, "finalize")
-    expect(finalize_status.exitstatus).to eq(1)
 
     manifest = JSON.parse(File.read(File.join(evidence_directory, "manifest.json")))
     expect(manifest.dig("checks", "passed")).to eq(1)

@@ -49,6 +49,7 @@ RSpec.describe "review evidence reporter" do
     _, _, finalize_status = invoke(evidence_directory, "finalize")
     expect(finalize_status.exitstatus).to eq(1)
 
+    records = JSON.parse(File.read(File.join(evidence_directory, "test-results", "commands.json")))
     manifest = JSON.parse(File.read(File.join(evidence_directory, "manifest.json")))
     expect(manifest.dig("pull_request", "number")).to eq(6)
     expect(manifest.dig("commit", "pull_request_head_sha")).to eq("head-sha")
@@ -103,7 +104,6 @@ RSpec.describe "review evidence reporter" do
     _, _, verify_status = invoke(evidence_directory, "verify")
     expect(verify_status).to be_success
 
-    records = JSON.parse(File.read(File.join(evidence_directory, "test-results", "commands.json")))
     expect(records.length).to eq(1)
     expect(records.first.fetch("name")).to eq("crystal-library-specs")
     expect(records.first.fetch("artifact")).to eq(File.basename(worker_evidence_directory))

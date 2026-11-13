@@ -23,6 +23,15 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: true
 
+      - name: Download built executables
+        uses: actions/download-artifact@v4
+        with:
+          name: xephyr-context-binaries-${{ github.run_attempt }}
+          path: bin
+
+      - name: Restore executable permissions
+        run: chmod +x bin/*
+
       - name: Initialize review evidence
         run: ruby script/review_evidence.rb init
 

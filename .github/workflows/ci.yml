@@ -22,6 +22,7 @@ jobs:
     uses: ./.github/workflows/integration-specs.yml
 
   ruby-cli:
+    needs: build
     uses: ./.github/workflows/ruby-cli-specs.yml
 
   review-evidence:
